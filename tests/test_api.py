@@ -78,6 +78,10 @@ def test_api_routes():
     assert res_prov.status_code == 200
     assert res_prov.json()["configured_provider"] == "local"
 
+    res_gw = client.post("/api/llm/provider", json={"provider": "gateway"})
+    assert res_gw.status_code == 200
+    assert res_gw.json()["configured_provider"] == "gateway"
+
     # Reset back to auto
     client.post("/api/llm/provider", json={"provider": "auto"})
 

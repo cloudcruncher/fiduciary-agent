@@ -4,6 +4,9 @@ from typing import Any, Dict, Optional, Tuple
 import requests
 
 from fiduciary.config import (
+    AI_GATEWAY_API_KEY,
+    AI_GATEWAY_MODEL,
+    AI_GATEWAY_URL,
     GEMINI_API_KEY,
     LLM_PROVIDER,
     LMSTUDIO_BASE_URL,
@@ -33,12 +36,56 @@ class LLMClient:
         provider: Optional[str] = None,
         lmstudio_url: Optional[str] = None,
         ollama_url: Optional[str] = None,
-        gemini_key: Optional[str] = None
+        gemini_key: Optional[str] = None,
+        gateway_url: Optional[str] = None,
+        gateway_api_key: Optional[str] = None,
+        gateway_model: Optional[str] = None,
     ):
         self.provider = provider if provider is not None else (_RUNTIME_PROVIDER or os.getenv("LLM_PROVIDER", LLM_PROVIDER))
         self.lmstudio_url = lmstudio_url if lmstudio_url is not None else os.getenv("LMSTUDIO_BASE_URL", LMSTUDIO_BASE_URL)
         self.ollama_url = ollama_url if ollama_url is not None else os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
         self.gemini_key = gemini_key if gemini_key is not None else (os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY)
+        self.gateway_url = (
+            gateway_url
+            if gateway_url is not None
+            else (os.getenv("AI_GATEWAY_URL") or os.getenv("OPENAI_BASE_URL") or AI_GATEWAY_URL)
+        ).rstrip("/")
+        self.gateway_api_key = (
+            gateway_api_key
+            if gateway_api_key is not None
+            else (os.getenv("AI_GATEWAY_API_KEY") or os.getenv("OPENAI_API_KEY") or AI_GATEWAY_API_KEY)
+        )
+        self.gateway_model = (
+            gateway_model
+            if gateway_model is not None
+            else (os.getenv("AI_GATEWAY_MODEL") or AI_GATEWAY_MODEL)
+        )
+
+    def _get_gateway_headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.gateway_api_key:
+            headers["Authorization"] = f"Bearer {self.gateway_api_key}"
+        return headers
+
+    def is_gateway_server_running(self) -> Tuple[bool, Optional[str]]:
+        """
+        Probes configured AI Gateway (LiteLLM Proxy, Portkey, Cloudflare AI Gateway, etc.).
+        Returns (is_running, model_name).
+        """
+        if not self.gateway_url:
+            return False, None
+        try:
+            resp = requests.get(f"{self.gateway_url}/models", timeout=0.8, headers=self._get_gateway_headers())
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", [])
+                if items:
+                    chosen = items[0].get("id", self.gateway_model)
+                    return True, chosen
+                return True, self.gateway_model
+        except Exception:
+            pass
+        return False, None
 
     def is_local_server_running(self) -> Tuple[bool, Optional[str], Optional[str]]:
         """
@@ -79,20 +126,28 @@ class LLMClient:
     def get_status(self) -> Dict[str, Any]:
         """Returns the active provider and its privacy/offline status."""
         local_up, local_provider, local_model = self.is_local_server_running()
+        gateway_up, gateway_model = self.is_gateway_server_running()
         active_mode = "none"
 
-        if self.provider == "local":
+        if self.provider == "gateway":
+            active_mode = "gateway" if (gateway_up or self.gateway_url) else "none"
+        elif self.provider == "local":
             active_mode = "local" if local_up else "none"
         elif self.provider == "gemini":
             active_mode = "gemini" if self.gemini_key else "none"
         else:  # "auto"
-            if local_up:
+            # In auto mode, prioritize AI gateway if configured and online, then local, then gemini
+            if self.gateway_url and gateway_up:
+                active_mode = "gateway"
+            elif local_up:
                 active_mode = "local"
             elif self.gemini_key:
                 active_mode = "gemini"
 
         badge_text = "⚠️ No LLM Active"
-        if active_mode == "local":
+        if active_mode == "gateway":
+            badge_text = f"🔵 AI Gateway ({gateway_model or self.gateway_model or 'LiteLLM Proxy'})"
+        elif active_mode == "local":
             if local_provider == "ollama":
                 badge_text = "🟢 Local Ollama (100% Private - On Device)"
             else:
@@ -106,8 +161,11 @@ class LLMClient:
             "local_server_online": local_up,
             "local_provider": local_provider,
             "local_model": local_model,
+            "gateway_server_online": gateway_up,
+            "gateway_url": self.gateway_url,
+            "gateway_model": gateway_model or self.gateway_model,
             "gemini_configured": bool(self.gemini_key),
-            "is_100_percent_private": active_mode == "local",
+            "is_100_percent_private": active_mode in ("local", "gateway"),
             "privacy_badge": badge_text
         }
 
@@ -163,6 +221,24 @@ class LLMClient:
                     f"⚠️ **{prov_name} Local Generation Error**\n\n"
                     f"The local server failed to respond to the completion request on `{used_model}`."
                 )
+        elif mode == "gateway":
+            used_provider = "gateway"
+            used_model = status.get("gateway_model") or self.gateway_model or "gateway-model"
+            gateway_ans = self._generate_gateway(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model_name=used_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout
+            )
+            if gateway_ans:
+                response_text = gateway_ans
+            else:
+                response_text = (
+                    f"⚠️ **AI Gateway Error**\n\n"
+                    f"The configured AI Gateway at `{self.gateway_url}` failed to respond on model `{used_model}`."
+                )
         elif mode == "gemini":
             used_provider = "gemini"
             used_model = "gemini-3.8-flash"
@@ -172,14 +248,15 @@ class LLMClient:
                 "⚠️ **No AI Model Configured**\n\n"
                 "To run with **100% Local Privacy** on your Mac (zero confidential financial data sent outside):\n"
                 "1. **Option A (Ollama - Fast & Native)**: Start Ollama (`ollama serve`) with `qwen3.5:4b`.\n"
-                "2. **Option B (LM Studio)**: Open LM Studio and start the local server on port 1234.\n\n"
-                "Both options run entirely offline on Apple Silicon Metal GPU."
+                "2. **Option B (LM Studio)**: Open LM Studio and start the local server on port 1234.\n"
+                "3. **Option C (AI Gateway)**: Set `AI_GATEWAY_URL` in `.env` to route through LiteLLM or an enterprise proxy.\n\n"
+                "Local options run entirely offline on Apple Silicon Metal GPU."
             )
 
         latency_ms = (time.perf_counter() - start_t) * 1000.0
 
         # Record observability trace with grounding audit and tools used
-        if mode in ("local", "gemini"):
+        if mode in ("local", "gemini", "gateway"):
             record_llm_trace(
                 caller=caller,
                 provider=used_provider,
@@ -192,6 +269,43 @@ class LLMClient:
             )
 
         return response_text
+
+    def _generate_gateway(
+        self,
+        prompt: str,
+        system_prompt: Optional[str],
+        model_name: str,
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+        timeout: int = 60
+    ) -> Optional[str]:
+        """Calls OpenAI-compatible /chat/completions endpoint on the AI Gateway."""
+        if not self.gateway_url:
+            return None
+        endpoint = f"{self.gateway_url}/chat/completions"
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        try:
+            resp = requests.post(endpoint, json=payload, headers=self._get_gateway_headers(), timeout=timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices:
+                    msg = choices[0].get("message", {})
+                    return msg.get("content", "").strip()
+        except Exception:
+            return None
+        return None
 
     def _generate_local(
         self,

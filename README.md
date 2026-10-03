@@ -184,9 +184,31 @@ Running local LLMs fast on an M3 MacBook Pro requires specific latency engineeri
 
 ---
 
+## 🌐 Enterprise AI Gateway & Intelligent Router Support
+
+While local-first execution on Apple Silicon Metal GPU remains the out-of-the-box default for privacy, institutional and team environments often route requests through an AI Gateway (e.g. **LiteLLM Proxy**, **Portkey**, **Cloudflare AI Gateway**, or **vLLM**).
+
+The Fiduciary Agent includes an opt-in, zero-dependency OpenAI-compatible **AI Gateway adapter**:
+
+```bash
+# In your .env file or environment:
+LLM_PROVIDER=gateway
+AI_GATEWAY_URL="http://localhost:4000/v1"   # LiteLLM Proxy, Portkey, Cloudflare AI Gateway
+AI_GATEWAY_API_KEY="sk-..."                 # Optional gateway bearer token
+AI_GATEWAY_MODEL="qwen3.5:4b"              # Target model / alias routed by proxy
+```
+
+### Gateway Architecture & Invariant Grounding Guardrails:
+1. **Intelligent Centralized Routing**: Route requests through enterprise proxy layers for rate-limiting, cost tracking, semantic caching, and dynamic failovers.
+2. **Domain-Specific Grounding Invariant**: Generic AI gateways provide generic moderation or regex PII scrubbing, but cannot validate financial ground truth. The harness's **`GroundingAuditor` remains active after gateway response generation**, auditing every cited £ balance, percentage yield, and runway day against deterministic Python calculations before presentation.
+3. **Full Telemetry & Observability**: Latency, tool execution metrics, and audit verdicts are recorded to the local `llm_traces` SQLite database and inspectable via `./f traces` or the Web Dashboard.
+4. **Dynamic Provider Switching**: Switch between `Local (Ollama)`, `LM Studio`, `AI Gateway`, and `Gemini Cloud` anytime via `./f` CLI or the Web Dashboard modal.
+
+---
+
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (48 tests) and automated CI pipeline:
+The repository includes a comprehensive test suite (61 tests) and automated CI pipeline:
 
 ```bash
 # Run full unit and integration test suite

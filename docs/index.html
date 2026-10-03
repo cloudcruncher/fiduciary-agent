@@ -180,10 +180,12 @@ flowchart TB
         
         LLM_CLIENT -->|"Primary Default (100% Offline)"| OLLAMA["Ollama Local Engine (:11434)<br/>(qwen3.5:4b / llama3.2 on Metal GPU)<br/>• think: false (Sub-second)<br/>• keep_alive: 0 (Zero RAM leak)"]
         LLM_CLIENT -.->|"Alternative Local"| LMSTUDIO["LM Studio Local Endpoint (:1234)<br/>(Meta-Llama-3.1-8B)"]
+        LLM_CLIENT -.->|"Enterprise AI Gateway (Opt-in)"| GATEWAY["AI Gateway / LiteLLM Proxy (:4000)<br/>(OpenAI-compatible router &amp; cache)"]
         LLM_CLIENT -.->|"Dormant Adapter (Opt-in only)"| GEMINI["Google Gemini Cloud API<br/>(Zero egress by default)"]
 
         OLLAMA --> AUDIT["Layer 1: Grounding Auditor<br/>• Extracts all £, %, days<br/>• Validates against Prompt Context<br/>• Flags Unverified Claims"]
         LMSTUDIO -.-> AUDIT
+        GATEWAY -.-> AUDIT
         GEMINI -.-> AUDIT
 
         AUDIT --> TRACE["Observability Logger<br/>• Latency (ms)<br/>• Grounding Score<br/>• llm_traces Table"]
@@ -464,7 +466,7 @@ sequenceDiagram
                             </li>
                             <li class="flex items-start space-x-2">
                                 <span class="text-emerald-400 font-bold">4.</span>
-                                <span><strong>Immutable Trace Logging:</strong> Records the full trace with latency (ms), model identifier, provider (<code>local</code>), prompt, response, and audit result to the <code>llm_traces</code> table.</span>
+                                <span><strong>Immutable Trace Logging:</strong> Records the full trace with latency (ms), model identifier, provider (<code>local</code>, <code>gateway</code>, <code>gemini</code>), prompt, response, and audit result to the <code>llm_traces</code> table.</span>
                             </li>
                             <li class="flex items-start space-x-2">
                                 <span class="text-amber-400 font-bold">5.</span>
@@ -477,6 +479,10 @@ sequenceDiagram
                             <li class="flex items-start space-x-2">
                                 <span class="text-cyan-400 font-bold">7.</span>
                                 <span><strong>Tool Execution &amp; Provenance Tracking:</strong> Every web scraping call (BoE 3.75%), retail market feed (Trading 212 4.87%, First Direct 7.00%), and database transaction query generates structured telemetry (<code>tool_name</code>, <code>source</code>, <code>latency_ms</code>, <code>summary</code>). Stored in <code>tools_used_json</code> and inspectable via <code>./f tools</code>, <code>./f traces --detail &lt;ID&gt;</code>, or the Web Dashboard tools panel.</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <span class="text-blue-400 font-bold">8.</span>
+                                <span><strong>Enterprise AI Gateway &amp; Router Adapter:</strong> For institutional deployments requiring centralized observability, rate limiting, and model fallback routing (e.g., LiteLLM Proxy, Cloudflare AI Gateway, Portkey), the harness provides an OpenAI-compatible adapter (<code>AI_GATEWAY_URL</code>). The domain-specific <code>GroundingAuditor</code> remains positioned after the gateway, ensuring mathematical truth is audited regardless of proxy routing.</span>
                             </li>
                         </ul>
                     </div>

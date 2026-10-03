@@ -1070,6 +1070,18 @@ DASHBOARD_HTML = """
                         <p class="text-[11px] text-slate-400 mt-1">Uses Local LM Studio whenever it is running. If LM Studio is stopped, automatically falls back to Gemini Cloud.</p>
                     </div>
                 </div>
+
+                <!-- Option 4: AI Gateway / LiteLLM Proxy -->
+                <div onclick="selectAIProvider('gateway')" id="opt-provider-gateway" class="p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-blue-500 cursor-pointer transition flex items-start space-x-3">
+                    <span class="text-2xl mt-0.5">🔵</span>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-100">AI Gateway (LiteLLM / Proxy)</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-950 border border-blue-800 text-blue-300 font-semibold">Router / Proxy</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">Routes via an OpenAI-compatible intelligent proxy or enterprise gateway (LiteLLM, Portkey, Cloudflare) with centralized rate-limiting, failovers, and caching.</p>
+                    </div>
+                </div>
             </div>
 
             <div class="pt-2 border-t border-slate-800 flex justify-end">
@@ -2647,7 +2659,7 @@ def get_llm_status():
 @app.post("/api/llm/provider")
 def set_llm_provider(req: LLMProviderRequest):
     from fiduciary.agent.llm_client import LLMClient, set_runtime_provider
-    if req.provider not in ("auto", "local", "gemini"):
+    if req.provider not in ("auto", "local", "gemini", "gateway"):
         raise HTTPException(status_code=400, detail="Invalid provider")
     set_runtime_provider(req.provider)
     client = LLMClient()

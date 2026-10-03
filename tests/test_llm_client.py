@@ -107,3 +107,51 @@ def test_llm_strict_privacy_no_cloud_fallback():
         assert "Local Generation Error" in ans
         mock_gemini.assert_not_called()
 
+
+def test_llm_client_gateway_detection():
+    with patch("requests.get") as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "data": [{"id": "litellm-routed-model"}]
+        }
+        client = LLMClient(
+            provider="gateway",
+            gateway_url="http://localhost:4000/v1",
+            gateway_api_key="sk-test-proxy",
+            gateway_model="litellm-routed-model"
+        )
+        status = client.get_status()
+        assert status["mode"] == "gateway"
+        assert status["gateway_server_online"] is True
+        assert status["gateway_model"] == "litellm-routed-model"
+        assert "AI Gateway" in status["privacy_badge"]
+
+
+def test_llm_generate_gateway_mocked():
+    with patch("requests.get") as mock_get, patch("requests.post") as mock_post:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "data": [{"id": "litellm-router-qwen"}]
+        }
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "choices": [{"message": {"content": "Response routed via LiteLLM Enterprise Gateway."}}]
+        }
+        client = LLMClient(
+            provider="gateway",
+            gateway_url="http://localhost:4000/v1",
+            gateway_api_key="sk-litellm-secret-key"
+        )
+        ans = client.generate("What is my uncommitted monthly income?")
+        assert "Response routed via LiteLLM Enterprise Gateway." in ans
+
+        # Verify endpoint and Authorization Bearer header
+        assert mock_post.called
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "http://localhost:4000/v1/chat/completions"
+        headers = call_args[1]["headers"]
+        assert headers["Authorization"] == "Bearer sk-litellm-secret-key"
+        payload = call_args[1]["json"]
+        assert payload["messages"][-1]["content"] == "What is my uncommitted monthly income?"
+
+
