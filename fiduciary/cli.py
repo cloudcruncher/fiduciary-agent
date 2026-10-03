@@ -517,6 +517,52 @@ def cmd_ui(args):
     ))
     uvicorn.run("fiduciary.web.app:app", host="127.0.0.1", port=PORT, log_level="warning")
 
+def cmd_gateway(args):
+    """Start or inspect the Enterprise AI Gateway (LiteLLM Proxy)."""
+    import shutil
+    import subprocess
+
+    from fiduciary.agent.llm_client import LLMClient
+
+    client = LLMClient()
+    status = client.get_status()
+    if status.get("gateway_server_online") or getattr(args, "status", False):
+        if status.get("gateway_server_online"):
+            console.print(Panel.fit(
+                f"[bold green]🔵 AI GATEWAY IS ONLINE & ACTIVE[/bold green]\n\n"
+                f"Endpoint: [bold cyan]{client.gateway_url}[/bold cyan]\n"
+                f"Active Model: [bold white]{status.get('gateway_model')}[/bold white]\n"
+                f"Privacy: [bold green]100% Private (Metal GPU via Ollama)[/bold green]\n"
+                f"Config File: [dim]litellm_config.yaml[/dim]",
+                border_style="blue"
+            ))
+        else:
+            console.print(Panel.fit(
+                f"[bold yellow]⚠️ AI GATEWAY IS OFFLINE[/bold yellow]\n\n"
+                f"Target URL: [bold cyan]{client.gateway_url or 'http://localhost:4000/v1'}[/bold cyan]\n"
+                f"Run [bold white]./f gateway[/bold white] to launch the LiteLLM proxy.",
+                border_style="yellow"
+            ))
+        return
+
+    litellm_bin = shutil.which("litellm") or "litellm"
+    port = str(getattr(args, "port", 4000))
+    console.print(Panel.fit(
+        f"[bold blue]🚀 STARTING LITELLM AI GATEWAY PROXY[/bold blue]\n\n"
+        f"Binding: [bold cyan]http://127.0.0.1:{port}[/bold cyan]\n"
+        f"Upstream: [bold green]Ollama (:11434 / Metal GPU)[/bold green]\n"
+        f"Config: [dim]litellm_config.yaml[/dim]\n\n"
+        f"[dim]Press Ctrl+C to stop the proxy[/dim]",
+        border_style="blue"
+    ))
+    subprocess.run([
+        litellm_bin,
+        "--config", "litellm_config.yaml",
+        "--port", port,
+        "--host", "127.0.0.1"
+    ])
+
+
 def cmd_copilot(args):
     """Interact with the live Fiduciary Copilot."""
     init_db()
@@ -1137,6 +1183,12 @@ def build_parser():
     # ui (alias: w)
     p_ui = subparsers.add_parser("ui", aliases=["w", "dashboard"], help="Launch local web dashboard")
     p_ui.set_defaults(func=cmd_ui)
+
+    # gateway (alias: gw, proxy)
+    p_gw = subparsers.add_parser("gateway", aliases=["gw", "proxy"], help="Start or inspect Enterprise AI Gateway (LiteLLM Proxy)")
+    p_gw.add_argument("--status", action="store_true", help="Inspect gateway health and status without starting")
+    p_gw.add_argument("--port", type=int, default=4000, help="Proxy port (default: 4000)")
+    p_gw.set_defaults(func=cmd_gateway)
 
     # traces (alias: tr, logs)
     p_traces = subparsers.add_parser("traces", aliases=["tr", "logs"], help="Inspect AI agent observability traces and grounding audits")

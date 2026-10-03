@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env file
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=True)
 
 # Enable Banking credentials
 ENABLE_BANKING_APP_ID = os.getenv("ENABLE_BANKING_APP_ID", "")

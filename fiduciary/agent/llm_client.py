@@ -136,11 +136,11 @@ class LLMClient:
         elif self.provider == "gemini":
             active_mode = "gemini" if self.gemini_key else "none"
         else:  # "auto"
-            # In auto mode, prioritize AI gateway if configured and online, then local, then gemini
-            if self.gateway_url and gateway_up:
-                active_mode = "gateway"
-            elif local_up:
+            # In auto mode, prioritize local-first on-device privacy, then AI gateway, then cloud
+            if local_up:
                 active_mode = "local"
+            elif self.gateway_url and gateway_up:
+                active_mode = "gateway"
             elif self.gemini_key:
                 active_mode = "gemini"
 
@@ -292,7 +292,8 @@ class LLMClient:
             "model": model_name,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens,
+            "extra_body": {"think": False}
         }
 
         try:
@@ -302,7 +303,10 @@ class LLMClient:
                 choices = data.get("choices", [])
                 if choices:
                     msg = choices[0].get("message", {})
-                    return msg.get("content", "").strip()
+                    content = msg.get("content", "").strip()
+                    if not content and "reasoning_content" in msg:
+                        content = msg.get("reasoning_content", "").strip()
+                    return content if content else None
         except Exception:
             return None
         return None

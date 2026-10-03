@@ -1,0 +1,18 @@
+# LiteLLM Enterprise Gateway / Proxy Configuration
+# Routes requests to local Ollama on Apple Silicon Metal GPU with centralized rate limiting,
+# caching, and failover capabilities.
+
+model_list:
+  - model_name: qwen3.5:4b
+    litellm_params:
+      model: ollama_chat/qwen3.5:4b
+      api_base: http://localhost:11434
+      extra_body:
+        think: false
+
+general_settings:
+  master_key: sk-litellm-proxy-token
+
+litellm_settings:
+  drop_params: true
+  telemetry: false
