@@ -82,6 +82,7 @@ An executable shortcut `./f` is available in the project root:
 | **`./f spending [query]`** | **`./f spend`** | Spending Insight Engine: Category breakdown (e.g. `pubs`, `groceries`), velocity & micro-expenses |
 | **`./f profile`** | **`./f p`** | Intelligent Customer Profile: Financial Health Score (0–100), Financial DNA Archetype & Action Cards |
 | **`./f copilot [Q]`** | **`./f chat`** | Interactive conversational AI Fiduciary Copilot (grounded in live transactions & tax rules) |
+| **`./f credit`** | **`./f cr`** | Underwriter-view credit audit: Borrowing Readiness Score, UMI/DTI, BNPL & returned-DD flags, mortgage capacity (4.5x, 7.5% stress), runway stress tests. Record bureau scores with `--experian 865 --equifax 740` |
 | **`./f watchdog`** | **`./f guard`** | Financial Watchdog: Detect stealth subscription price hikes, duplicate charges, upcoming bills |
 | **`./f tax`** | **`./f t`** | UK Tax & Wealth Optimization: 60% allowance trap audit, SIPP relief, Personal Savings Allowance drag |
 | **`./f sweep`** | — | Smart Cash Sweeper & Automated Standing Order float architect |

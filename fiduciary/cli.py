@@ -619,6 +619,67 @@ def cmd_watchdog(args):
         )
     console.print(bt)
 
+def cmd_credit(args):
+    """UK underwriter-style credit & affordability audit (offline, cash-flow based)."""
+    from fiduciary.analysis.credit_affordability import CreditAffordabilityEngine
+    from fiduciary.storage.db import save_credit_bureau_scores
+
+    if any(v is not None for v in (args.experian, args.equifax, args.transunion, args.electoral_roll)):
+        er = None if args.electoral_roll is None else args.electoral_roll == "yes"
+        save_credit_bureau_scores(args.experian, args.equifax, args.transunion, er)
+        console.print("[green]✓ Bureau scores saved locally.[/green]")
+
+    a = CreditAffordabilityEngine.run_full_audit()
+    cf = a["cash_flow_affordability"]
+    color = a["tier_badge_color"]
+    console.print(Panel(
+        f"[bold {color}]{a['borrowing_readiness_score']}/100 — {a['underwriter_tier']}[/bold {color}]\n{a['tier_description']}",
+        title="🏦 Borrowing Readiness (Underwriter View)", border_style=color))
+
+    t = Table(title="Cash-Flow Affordability", border_style="cyan")
+    t.add_column("Metric")
+    t.add_column("Value", justify="right")
+    t.add_row("Net monthly income", f"£{cf['monthly_net_income']:,.2f}")
+    t.add_row("Est. gross annual", f"£{cf['estimated_annual_gross']:,.0f}")
+    t.add_row("Fixed needs (housing, bills, essentials)", f"£{cf['monthly_fixed_needs']:,.2f}")
+    t.add_row("Contractual debt / BNPL", f"£{cf['monthly_committed_debt']:,.2f}")
+    t.add_row("Uncommitted monthly income", f"£{cf['uncommitted_monthly_income_umi']:,.2f} ({cf['umi_surplus_pct']}%)")
+    t.add_row("Debt-to-income", f"{cf['contractual_dti_pct']}%")
+    console.print(t)
+
+    m = a["mortgage_borrowing_capacity"]
+    console.print(Panel(
+        f"Max borrowing (4.5x gross less debt): [bold]£{m['net_maximum_borrowing_capacity']:,.0f}[/bold]\n"
+        f"Repayment @ {m['indicative_rate_pct']}%: £{m['indicative_monthly_repayment']:,.2f}/mo  |  "
+        f"Stress @ {m['stress_tested_rate_pct']}%: £{m['stress_tested_monthly_repayment']:,.2f}/mo",
+        title="🏠 Mortgage Capacity (indicative)", border_style="blue"))
+
+    f = a["underwriter_risk_flags"]
+    console.print(Panel(
+        f"BNPL: {f['bnpl_summary']}\n"
+        f"Returned direct debits: {f['bounced_count']}\n"
+        f"Overdraft reliance: {'Yes' if f['overdraft_reliance'] else 'No'}\n"
+        f"Gambling (30d): £{f['gambling_spend_30d']:,.2f} — {f['gambling_risk']}\n"
+        f"Electoral roll: {'Verified' if f['electoral_roll_verified'] else 'NOT registered'}",
+        title="🚩 Underwriter Risk Flags", border_style="yellow"))
+
+    r = a["emergency_runway_and_stress"]
+    s = Table(title=f"Stress Tests (liquid cash £{r['liquid_cash_gbp']:,.2f})", border_style="magenta")
+    s.add_column("Scenario")
+    s.add_column("Result")
+    sc = r["scenarios"]
+    s.add_row(sc[0]["name"], f"{sc[0]['comfortable_months']} mo comfortable / {sc[0]['survival_months']} mo survival — {sc[0]['status']}")
+    s.add_row(sc[1]["name"], f"£{sc[1]['remaining_cash']:,.2f} left ({sc[1]['remaining_runway_months']} mo)")
+    s.add_row(sc[2]["name"], f"UMI £{sc[2]['new_umi']:,.2f}, DTI {sc[2]['new_dti_pct']}% — {'affordable' if sc[2]['is_affordable'] else 'strained'}")
+    console.print(s)
+
+    b = a["bureau_scores"]
+    console.print(f"[dim]Bureau scores (self-reported): Experian {b['experian']} | Equifax {b['equifax']} | TransUnion {b['transunion']}[/dim]")
+    console.print("\n[bold]Action playbook[/bold]")
+    for c in a["action_playbook"]:
+        console.print(f"  [{c['priority']}] [bold]{c['title']}[/bold] — {c['action']}")
+
+
 def cmd_tax(args):
     """Run UK Tax & Wealth Optimization audit."""
     init_db()
@@ -995,6 +1056,14 @@ def build_parser():
     # watchdog (alias: guard, wd)
     p_watchdog = subparsers.add_parser("watchdog", aliases=["guard", "wd"], help="Financial Watchdog: Price hikes, duplicate charges, upcoming bills")
     p_watchdog.set_defaults(func=cmd_watchdog)
+
+    # credit (alias: cr)
+    p_credit = subparsers.add_parser("credit", aliases=["cr"], help="Underwriter-style credit & affordability audit, mortgage capacity, stress tests")
+    p_credit.add_argument("--experian", type=int, help="Record your Experian score (0-999)")
+    p_credit.add_argument("--equifax", type=int, help="Record your Equifax score (0-1000)")
+    p_credit.add_argument("--transunion", type=int, help="Record your TransUnion score (0-710)")
+    p_credit.add_argument("--electoral-roll", choices=["yes", "no"], help="Registered on the electoral roll")
+    p_credit.set_defaults(func=cmd_credit)
 
     # tax (alias: t)
     p_tax = subparsers.add_parser("tax", aliases=["t"], help="UK Tax & Wealth Optimization: 60%% trap audit, SIPP relief, PSA drag")

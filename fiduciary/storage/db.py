@@ -120,6 +120,16 @@ def init_db():
         updated_at TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS credit_profile (
+        id TEXT PRIMARY KEY,
+        experian_score INTEGER,
+        equifax_score INTEGER,
+        transunion_score INTEGER,
+        electoral_roll_status INTEGER DEFAULT 1,
+        notes TEXT,
+        updated_at TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_trans_account ON transactions(account_id);
     CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(booking_date);
     CREATE INDEX IF NOT EXISTS idx_nw_date ON net_worth_snapshots(snapshot_date);
@@ -838,4 +848,67 @@ def get_trace_by_id(trace_id: str) -> Optional[Dict[str, Any]]:
 
         return d
     return None
+
+
+def save_credit_bureau_scores(
+    experian: Optional[int] = None,
+    equifax: Optional[int] = None,
+    transunion: Optional[int] = None,
+    electoral_roll: Optional[bool] = None,
+    notes: Optional[str] = None,
+) -> Dict[str, Any]:
+    init_db()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM credit_profile WHERE id = 'default'")
+    row = c.fetchone()
+    now = datetime.now().isoformat()
+
+    exp = experian if experian is not None else (row["experian_score"] if row else None)
+    eq = equifax if equifax is not None else (row["equifax_score"] if row else None)
+    tu = transunion if transunion is not None else (row["transunion_score"] if row else None)
+    er = int(electoral_roll) if electoral_roll is not None else (row["electoral_roll_status"] if row else 1)
+    n = notes if notes is not None else (row["notes"] if row else "")
+
+    c.execute("""
+        INSERT INTO credit_profile (id, experian_score, equifax_score, transunion_score, electoral_roll_status, notes, updated_at)
+        VALUES ('default', ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            experian_score=excluded.experian_score,
+            equifax_score=excluded.equifax_score,
+            transunion_score=excluded.transunion_score,
+            electoral_roll_status=excluded.electoral_roll_status,
+            notes=excluded.notes,
+            updated_at=excluded.updated_at
+    """, (exp, eq, tu, er, n, now))
+    conn.commit()
+    conn.close()
+    return get_credit_bureau_scores()
+
+
+def get_credit_bureau_scores() -> Dict[str, Any]:
+    init_db()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM credit_profile WHERE id = 'default'")
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return {
+            "experian": None,
+            "equifax": None,
+            "transunion": None,
+            "electoral_roll": True,
+            "notes": "",
+            "updated_at": None,
+        }
+    return {
+        "experian": row["experian_score"],
+        "equifax": row["equifax_score"],
+        "transunion": row["transunion_score"],
+        "electoral_roll": bool(row["electoral_roll_status"]),
+        "notes": row["notes"] or "",
+        "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
+    }
+
 

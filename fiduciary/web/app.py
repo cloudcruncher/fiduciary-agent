@@ -2180,6 +2180,23 @@ def get_customer_profile_api():
     from fiduciary.analysis.customer_profile import CustomerProfileEngine
     return CustomerProfileEngine.generate_profile()
 
+class CreditScoresRequest(BaseModel):
+    experian: Optional[int] = None
+    equifax: Optional[int] = None
+    transunion: Optional[int] = None
+    electoral_roll: Optional[bool] = None
+
+@app.get("/api/credit/audit")
+def get_credit_audit_api():
+    init_db()
+    from fiduciary.analysis.credit_affordability import CreditAffordabilityEngine
+    return CreditAffordabilityEngine.run_full_audit()
+
+@app.post("/api/credit/scores")
+def save_credit_scores_api(req: CreditScoresRequest):
+    from fiduciary.storage.db import save_credit_bureau_scores
+    return save_credit_bureau_scores(req.experian, req.equifax, req.transunion, req.electoral_roll)
+
 @app.post("/api/sync/wise")
 def sync_wise():
     init_db()

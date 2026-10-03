@@ -11,6 +11,7 @@ from fiduciary.storage.db import (
     get_connection,
     init_db,
     insert_transactions,
+    save_credit_bureau_scores,
     save_net_worth_snapshot,
     upsert_account,
     upsert_institution,
@@ -142,6 +143,26 @@ def seed_demo_data(reset: bool = True) -> Dict[str, Any]:
     for months_ago in [0, 1]:
         base_d = now - timedelta(days=30 * months_ago)
         tx_pool.extend([
+            {
+                "account_id": "acc_natwest_main",
+                "transaction_id": f"so_rent_{months_ago}",
+                "booking_date": (base_d.replace(day=1)).strftime("%Y-%m-%d"),
+                "amount": -1350.00,
+                "currency": "GBP",
+                "counterparty_name": "Standing Order FOXTONS LETTINGS",
+                "description": "RENT - FLAT 4 RIVERSIDE COURT",
+                "category": "General Living Spend",
+            },
+            {
+                "account_id": "acc_natwest_main",
+                "transaction_id": f"klarna_{months_ago}",
+                "booking_date": (base_d.replace(day=15)).strftime("%Y-%m-%d"),
+                "amount": -42.50,
+                "currency": "GBP",
+                "counterparty_name": "Klarna",
+                "description": "KLARNA* INSTALMENT 2 OF 3",
+                "category": "General Living Spend",
+            },
             {
                 "account_id": "acc_natwest_main",
                 "transaction_id": f"dd_council_{months_ago}",
@@ -321,6 +342,15 @@ def seed_demo_data(reset: bool = True) -> Dict[str, Any]:
 
     # Initial Net Worth Snapshot
     save_net_worth_snapshot()
+
+    # Seed baseline credit bureau ratings
+    save_credit_bureau_scores(
+        experian=865,
+        equifax=740,
+        transunion=645,
+        electoral_roll=True,
+        notes="Verified on UK Electoral Roll at current residential address (3+ years)",
+    )
 
     return {
         "status": "success",
