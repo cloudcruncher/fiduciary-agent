@@ -107,3 +107,22 @@ def test_api_routes():
     assert "health_score" in res_prof.json()
     assert "financial_dna" in res_prof.json()
     assert "action_cards" in res_prof.json()
+
+    # 18. Credit & Affordability audit endpoint
+    res_credit = client.get("/api/credit/audit")
+    assert res_credit.status_code == 200
+    credit_data = res_credit.json()
+    assert "borrowing_readiness_score" in credit_data
+    assert "underwriter_tier" in credit_data
+    assert "cash_flow_affordability" in credit_data
+    assert "mortgage_borrowing_capacity" in credit_data
+    assert "underwriter_risk_flags" in credit_data
+
+    # 19. Credit bureau scores update endpoint
+    res_scores = client.post(
+        "/api/credit/scores",
+        json={"experian": 880, "equifax": 750, "transunion": 650, "electoral_roll": True}
+    )
+    assert res_scores.status_code == 200
+    assert res_scores.json()["experian"] == 880
+    assert res_scores.json()["electoral_roll"] is True

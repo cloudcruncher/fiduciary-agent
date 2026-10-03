@@ -85,3 +85,28 @@ def test_bureau_scores_roundtrip_and_partial_update():
     assert (s["experian"], s["equifax"], s["transunion"], s["electoral_roll"]) == (860, 700, 600, True)
     save_credit_bureau_scores(electoral_roll=False)
     assert get_credit_bureau_scores()["electoral_roll"] is False
+
+
+def test_copilot_credit_query_triggers_audit(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from fiduciary.agent.copilot import AICopilotEngine
+
+    copilot = AICopilotEngine()
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = "Your borrowing readiness score is 84/100 (Tier 2 Mainstream)."
+    monkeypatch.setattr(copilot, "llm", mock_llm)
+    monkeypatch.setattr(copilot, "is_configured", lambda: True)
+
+    _txs()
+    ans = copilot.process_query("What is my borrowing readiness score and mortgage capacity?")
+    assert "84/100" in ans
+    assert mock_llm.generate.called
+    call_kwargs = mock_llm.generate.call_args.kwargs
+    sys_prompt = call_kwargs.get("system_prompt", "")
+    assert "BORROWING READINESS SCORE" in sys_prompt
+    assert "OPEN BANKING CASH-FLOW AFFORDABILITY" in sys_prompt
+    assert "INDICATIVE MORTGAGE BORROWING CAPACITY" in sys_prompt
+    tools_used = call_kwargs.get("tools_used", [])
+    assert any(t.get("tool_name") == "credit_affordability_audit" for t in tools_used)
+

@@ -100,6 +100,11 @@ class AICopilotEngine:
         is_market_query = any(w in q_lower for w in ["isa", "saving", "saver", "rate", "rates", "boe", "bank of england", "interest", "switch", "bonus", "yield", "inflation"])
         is_tax_query = any(w in q_lower for w in ["tax", "allowance", "sipp", "pension", "cgt", "taper", "bracket", "salary", "income"])
         is_afford_query = any(w in q_lower for w in ["can i afford", "afford", "holiday", "trip", "can i buy", "big purchase"])
+        is_credit_query = any(w in q_lower for w in [
+            "credit", "borrow", "borrowing", "mortgage", "loan", "underwriter", "affordability",
+            "experian", "equifax", "transunion", "bureau", "bnpl", "klarna", "clearpay", "zilch",
+            "dti", "umi", "debt to income", "uncommitted", "credit rating", "credit score", "electoral roll"
+        ])
 
         # 4. Deterministic Watchdog telemetry
         tools_executed.append({
@@ -155,7 +160,7 @@ class AICopilotEngine:
             context_blocks.append("\n".join(spend_block))
 
         # 7. General Transactions Query (e.g. "last 10 transactions", "revolut transactions")
-        elif is_tx_query or (not is_market_query and not is_tax_query and not is_afford_query and not is_profile_query):
+        elif is_tx_query or (not is_market_query and not is_tax_query and not is_afford_query and not is_profile_query and not is_credit_query):
             t_start_db = time.perf_counter()
             target_bank = parsed_spending.get("target_bank")
             fetch_limit = parsed_spending.get("limit") or 15  # Sensible default of 15 records
@@ -258,6 +263,60 @@ class AICopilotEngine:
         if is_market_query and not web_context:
             context_blocks.append("• Top Cash ISA Benchmark: Trading 212 at 4.87% AER (Flexible, 100% Tax-Free)")
 
+        # 11. Credit & Borrowing Health / Underwriter Affordability Context
+        if is_credit_query:
+            t_start_credit = time.perf_counter()
+            from fiduciary.analysis.credit_affordability import CreditAffordabilityEngine
+            credit_audit = CreditAffordabilityEngine.run_full_audit()
+            t_credit_lat = round((time.perf_counter() - t_start_credit) * 1000.0, 1)
+
+            tools_executed.append({
+                "tool_name": "credit_affordability_audit",
+                "type": "open_banking_underwriter_engine",
+                "source": "CreditAffordabilityEngine (FCA MCOB 11 Standard)",
+                "latency_ms": t_credit_lat,
+                "status": "SUCCESS",
+                "summary": f"Borrowing Readiness: {credit_audit['borrowing_readiness_score']}/100 ({credit_audit['underwriter_tier']}), UMI: £{credit_audit['cash_flow_affordability']['uncommitted_monthly_income_umi']:,.2f}, Max Mortgage: £{credit_audit['mortgage_borrowing_capacity']['net_maximum_borrowing_capacity']:,.2f}"
+            })
+
+            cf = credit_audit["cash_flow_affordability"]
+            rf = credit_audit["underwriter_risk_flags"]
+            mc = credit_audit["mortgage_borrowing_capacity"]
+            er = credit_audit["emergency_runway_and_stress"]
+            bs = credit_audit["bureau_scores"]
+            actions = credit_audit.get("action_playbook", [])
+
+            action_lines = []
+            for idx, a in enumerate(actions[:3], 1):
+                action_lines.append(f"  {idx}. [{a['priority']}] {a['title']}: {a['action']}")
+
+            credit_block = (
+                f"• BORROWING READINESS SCORE: {credit_audit['borrowing_readiness_score']} / 100 (Tier: {credit_audit['underwriter_tier']})\n"
+                f"  - Assessment: {credit_audit['tier_description']}\n"
+                f"• OPEN BANKING CASH-FLOW AFFORDABILITY (FCA MCOB 11):\n"
+                f"  - Verified Monthly Net Pay: £{cf['monthly_net_income']:,.2f} (Est. Annual Gross: £{cf['estimated_annual_gross']:,.2f})\n"
+                f"  - Fixed Needs Outflow: £{cf['monthly_fixed_needs']:,.2f}/mo | Contractual Debt Commitments: £{cf['monthly_committed_debt']:,.2f}/mo\n"
+                f"  - Uncommitted Monthly Income (UMI): £{cf['uncommitted_monthly_income_umi']:,.2f}/mo ({cf['umi_surplus_pct']}% surplus ratio)\n"
+                f"  - Contractual Debt-to-Income (DTI): {cf['contractual_dti_pct']}% (Prime benchmark: <20%)\n"
+                f"• INDICATIVE MORTGAGE BORROWING CAPACITY:\n"
+                f"  - Gross Income Baseline (4.5x): £{mc['gross_income_baseline']:,.2f}\n"
+                f"  - Debt Commitment Deduction: -£{mc['debt_commitment_deduction']:,.2f}\n"
+                f"  - Net Maximum Mortgage Capacity: £{mc['net_maximum_borrowing_capacity']:,.2f}\n"
+                f"  - Indicative 25-yr Payment ({mc['indicative_rate_pct']}% rate): £{mc['indicative_monthly_repayment']:,.2f}/mo\n"
+                f"  - Stress-Tested Payment ({mc['stress_tested_rate_pct']}% rate): £{mc['stress_tested_monthly_repayment']:,.2f}/mo\n"
+                f"• UNDERWRITER RISK FLAGS SCANNER:\n"
+                f"  - Buy-Now-Pay-Later (BNPL / Klarna): {'⚠️ DETECTED (' + rf['bnpl_summary'] + ')' if rf['bnpl_detected'] else '✅ None detected (Clean)'}\n"
+                f"  - Bounced / Returned Direct Debits: {'⚠️ DETECTED (' + str(rf['bounced_count']) + ' returned)' if rf['bounced_direct_debits_detected'] else '✅ Clean (0 returned in 180 days)'}\n"
+                f"  - Overdraft Reliance / Unarranged Fees: {'⚠️ Overdraft activity detected' if rf['overdraft_reliance'] else '✅ Clean (No overdraft usage)'}\n"
+                f"  - Gambling Outflow: £{rf['gambling_spend_30d']:.2f} ({rf['gambling_pct_of_income']}% of net pay - {rf['gambling_risk']})\n"
+                f"  - ATM Cash Ratio: £{rf['atm_cash_withdrawals_30d']:.2f} ({rf['atm_pct_of_income']}% of net pay)\n"
+                f"  - Electoral Roll Verified: {'✅ Yes (Registered)' if rf['electoral_roll_verified'] else '⚠️ Not registered on Electoral Roll'}\n"
+                f"• SELF-REPORTED BUREAU SCORES: Experian: {bs.get('experian') or 'N/A'}/999 | Equifax: {bs.get('equifax') or 'N/A'}/1000 | TransUnion: {bs.get('transunion') or 'N/A'}/710\n"
+                f"• EMERGENCY RUNWAY UNDER STRESS: Comfortable {er['comfortable_runway_months']} months | Survival (bare-bones) {er['survival_runway_months']} months\n"
+                f"• TOP CREDIT ACTION PLAYBOOK RECOMMENDATIONS:\n" + ("\n".join(action_lines) if action_lines else "  None")
+            )
+            context_blocks.append(credit_block)
+
         system_prompt = f"""You are an elite UK Chartered Financial Planner and Independent Fiduciary Copilot.
 Your fiduciary duty is 100% to this client: zero affiliate bias, zero marketing fluff, mathematically rigorous, transparent, and direct.
 
@@ -280,6 +339,11 @@ GUIDELINES:
    - Cite the exact Health Score (0-100), Financial Archetype, and prioritized action cards from the context.
 6. If asked if an expense is affordable, calculate the exact impact on liquid runway days and the 3-month safety buffer.
 7. Keep answers concise, actionable, and under 250 words.
+8. When asked about credit score, borrowing capacity, mortgage readiness, or underwriter checks:
+   - State the Borrowing Readiness Score (0-100) and Underwriter Tier clearly.
+   - Ground your answer in verified Open Banking cash-flow affordability metrics: Uncommitted Monthly Income (UMI) and Debt-to-Income (DTI).
+   - If BNPL (Klarna/Clearpay) or other risk flags are present, explain the exact underwriter impact and corrective steps.
+   - Quote the verified indicative mortgage borrowing capacity (£) and monthly repayments (4.4% indicative vs 7.5% stress-tested).
 """
 
         conversation_context = ("\n\nRECENT CONVERSATION:\n" + "\n".join(formatted_history)) if formatted_history else ""

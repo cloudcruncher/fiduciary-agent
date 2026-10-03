@@ -148,7 +148,7 @@ flowchart TB
     end
 
     subgraph STORAGE["2. LOCAL AIR-GAPPED STORAGE"]
-        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)")]
+        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)<br/>• credit_profile (CRA Scores &amp; Electoral Roll)")]
     end
 
     subgraph CORE["3. DETERMINISTIC PYTHON CORE (ZERO MATH HALLUCINATION)"]
@@ -157,6 +157,7 @@ flowchart TB
         DB --> TAX["UK Tax Optimizer<br/>• 60% Marginal Tax Trap<br/>• PSA Interest Drag<br/>• SIPP Pension Sacrifice"]
         DB --> SWEEP["Smart Sweeper Engine<br/>• 1st-of-Month Float Plan<br/>• Consumer Rights 2015 Notices"]
         DB --> NW["Whole Balance Sheet<br/>• Multi-Asset Net Worth<br/>• Class Allocation (Cash/ISA/Pots)"]
+        DB --> CREDIT["Credit &amp; Affordability Engine<br/>• FCA MCOB 11 Cash Flow (UMI/DTI)<br/>• BNPL &amp; Returned DD Radar<br/>• 4.5x Mortgage Capacity &amp; Stress<br/>• 0–100 Readiness Score"]
     end
 
     subgraph AI["4. LOCAL OLLAMA REASONING &amp; GUARDRAIL PIPELINE (100% PRIVATE)"]
@@ -165,6 +166,7 @@ flowchart TB
         TAX --> CTX
         SWEEP --> CTX
         NW --> CTX
+        CREDIT --> CTX
 
         WEB["Zero-Overhead Web Tools (&lt;250ms)<br/>• Live BoE Base Rate (3.75%)<br/>• Top Cash ISA (4.87%) &amp; Regular Saver (7.00%)<br/>• DuckDuckGo Knowledge API"] --> CTX
         WEB --> TOOL_OBS["Tool Execution Tracker<br/>• Latency (ms), URL/Source, Payload<br/>• tools_used_json stored in trace"]
@@ -194,8 +196,8 @@ flowchart TB
         TRACE --> FASTAPI
 
         FASTAPI --> MACAPP["Native macOS App<br/>(/Applications/Fiduciary.app)"]
-        FASTAPI --> BROWSER["Local Web Dashboard<br/>(http://localhost:8080)<br/>• Live Transactions tab<br/>• Traces modal"]
-        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f tx -a revolut -n 5, ./f copilot, ./f judge)"]
+        FASTAPI --> BROWSER["Local Web Dashboard<br/>(http://localhost:8080)<br/>• Live Transactions tab<br/>• Credit &amp; Borrowing tab<br/>• Traces modal"]
+        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f tx -a revolut -n 5, ./f credit, ./f copilot, ./f judge)"]
     end
 
     style INGESTION fill:#064e3b,stroke:#059669,stroke-width:2px,color:#ecfdf5
@@ -410,6 +412,25 @@ sequenceDiagram
                             projected_annual_yield = sweepable_cash * 0.0487
                         </div>
                     </div>
+
+                    <!-- Module 5 -->
+                    <div class="p-4 bg-slate-850 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-100 flex items-center space-x-1.5">
+                                <span>🏦</span>
+                                <span>Credit &amp; Affordability Engine (credit_affordability.py)</span>
+                            </span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-950 border border-cyan-800 text-cyan-300 font-semibold">FCA MCOB 11 Underwriter</span>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">
+                            Underwrites household creditworthiness according to UK Open Banking standards. Detects monthly payroll, living necessities, and contractual debt to compute <strong>Uncommitted Monthly Income (UMI)</strong> and <strong>Debt-to-Income (DTI)</strong>. Scans 90-day history for BNPL instalments (Klarna/Clearpay) and returned direct debits, calculates 4.5x gross mortgage capacity with 7.5% stress testing, and maintains an air-gapped local CRA profile.
+                        </p>
+                        <div class="font-mono text-[10px] p-2 bg-slate-900 rounded text-slate-300 border border-slate-800/80">
+                            UMI = net_monthly_income - (fixed_needs + committed_debt)<br/>
+                            mortgage_capacity = (gross_annual * 4.5) - (annual_debt * 3.5)<br/>
+                            readiness_score = cashflow(40) + dti(20) + hygiene(25) + identity(15)
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -579,6 +600,16 @@ erDiagram
         string access_token
         string refresh_token
         timestamp expires_at
+        timestamp updated_at
+    }
+
+    credit_profile {
+        integer id PK
+        integer experian "Experian score (0-999)"
+        integer equifax "Equifax score (0-1000)"
+        integer transunion "TransUnion score (0-710)"
+        integer electoral_roll "Electoral roll registered"
+        string notes
         timestamp updated_at
     }
                     </pre>

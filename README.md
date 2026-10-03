@@ -165,6 +165,14 @@ When you are ready to transition from synthetic demo data to your real finances:
 ### 3. PDF & CSV Bank Statement Importer
 Drop any NatWest, Revolut, Chase, or HSBC PDF/CSV statement into the drag-and-drop importer at `http://localhost:8080`. Statements are parsed in memory, sanitized through the PII Privacy Shield, and stored directly in your local SQLite database.
 
+### 4. Credit & Underwriter Affordability Engine (FCA MCOB 11)
+UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow affordability** rather than CRA bureau scores alone:
+- **Cash-Flow Affordability**: Automatic payroll detection, Uncommitted Monthly Income (UMI), and Contractual Debt-to-Income (DTI).
+- **Underwriter Risk Scanner**: 90-day scan for BNPL (Klarna, Clearpay, Zilch), bounced direct debits, overdraft dip zones, and gambling spend (<1% benchmark).
+- **4.5x Mortgage Capacity**: Net borrowing capacity deducting committed debts, with 4.4% indicative 25-yr repayments and 7.5% BoE stress testing.
+- **Runway & Stress Simulator**: Comfortable vs Survival runway (cutting non-essentials), income shock, £1,500 emergency repair shock, and UK CPI inflation drag.
+- **Local CRA Tracking**: Air-gapped tracking for Experian (999), Equifax (1000), TransUnion (710), and Electoral Roll status.
+
 ---
 
 ## 🧠 Optimizing Local LLMs on Apple Silicon (M3, 16GB RAM)

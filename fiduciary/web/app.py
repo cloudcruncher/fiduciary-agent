@@ -156,6 +156,10 @@ DASHBOARD_HTML = """
                 <span>🚨 Watchdog & Bills</span>
                 <span id="badge-watchdog-alert" class="hidden px-1.5 py-0.2 bg-rose-500/20 text-rose-300 rounded-full text-[10px]">!</span>
             </button>
+            <button onclick="switchMainTab('credit')" id="tab-btn-credit" class="px-3.5 py-1.5 text-slate-400 hover:text-slate-200 rounded-lg whitespace-nowrap flex items-center space-x-1.5">
+                <span>🏦 Credit & Borrowing</span>
+                <span id="badge-credit-score" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-emerald-400 font-semibold border border-slate-700">Audit</span>
+            </button>
             <button onclick="switchMainTab('tax')" id="tab-btn-tax" class="px-3.5 py-1.5 text-slate-400 hover:text-slate-200 rounded-lg whitespace-nowrap">🇬🇧 UK Tax Optimization</button>
             <button onclick="switchMainTab('sweep')" id="tab-btn-sweep" class="px-3.5 py-1.5 text-slate-400 hover:text-slate-200 rounded-lg whitespace-nowrap">⚡ Smart Sweeper</button>
             <button onclick="switchMainTab('scout')" id="tab-btn-scout" class="px-3.5 py-1.5 text-slate-400 hover:text-slate-200 rounded-lg whitespace-nowrap">🌐 Market Scout</button>
@@ -413,6 +417,278 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- TAB: CREDIT & BORROWING HEALTH (FCA MCOB 11 UNDERWRITER AUDIT) -->
+        <div id="section-credit" class="hidden space-y-6">
+
+            <!-- Executive Banner & Readiness Score -->
+            <div class="card bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 border border-slate-700/80 shadow-xl">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                    <div class="space-y-2 max-w-2xl">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-xl">🏦</span>
+                            <h2 class="text-lg font-bold text-white tracking-wide">Credit & Borrowing Health Audit</h2>
+                            <span id="credit-tier-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-900/60 text-blue-300 border border-blue-700/60">
+                                Tier 2 • Mainstream
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300 font-semibold">
+                                100% Local Privacy
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed" id="credit-tier-memo">
+                            Institutional Underwriter Standard (FCA MCOB 11). Evaluates live Open Banking cash-flow affordability, debt service, BNPL usage, and payment integrity without transmitting your financial data off this device.
+                        </p>
+                    </div>
+
+                    <!-- Score Card / Gauge -->
+                    <div class="flex items-center space-x-5 bg-slate-950/70 p-4 rounded-xl border border-slate-800 min-w-[280px]">
+                        <div class="text-center">
+                            <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Borrowing Readiness</div>
+                            <div class="text-4xl font-black mt-0.5 text-white flex items-baseline justify-center space-x-1">
+                                <span id="credit-score-val" class="text-emerald-400">84</span>
+                                <span class="text-xs text-slate-500 font-semibold">/ 100</span>
+                            </div>
+                        </div>
+                        <div class="h-10 w-[1px] bg-slate-800"></div>
+                        <div class="flex-1 space-y-1.5 text-[11px]">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Cash Flow (UMI)</span>
+                                <span id="comp-cashflow" class="text-slate-200 font-bold">40/40</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Debt Ratio (DTI)</span>
+                                <span id="comp-dti" class="text-slate-200 font-bold">20/20</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Risk Record (BNPL/DD)</span>
+                                <span id="comp-hygiene" class="text-amber-400 font-bold">14/25</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Stability / Identity</span>
+                                <span id="comp-stability" class="text-slate-200 font-bold">15/15</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3-Column Core Underwriter Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- 1. Cash-Flow Affordability (MCOB 11) -->
+                <div class="card space-y-4 border-t-4 border-t-cyan-500">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">📊</span>
+                            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Cash-Flow Affordability</h3>
+                        </div>
+                        <span class="text-[10px] text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800 font-medium">MCOB 11</span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="flex justify-between items-center p-2.5 bg-slate-850 rounded-lg">
+                            <span class="text-slate-400">Verified Monthly Net Pay</span>
+                            <span class="text-white font-bold text-sm" id="cf-monthly-net">£0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2.5 bg-slate-850 rounded-lg">
+                            <span class="text-slate-400">Estimated Gross Annual Pay</span>
+                            <span class="text-slate-200 font-semibold" id="cf-annual-gross">£0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-slate-900 border border-slate-800 rounded">
+                            <span class="text-slate-400">Fixed Living Commitments</span>
+                            <span class="text-rose-300 font-medium" id="cf-fixed-needs">-£0.00/mo</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-slate-900 border border-slate-800 rounded">
+                            <span class="text-slate-400">Contractual Debt Repayments</span>
+                            <span class="text-rose-300 font-medium" id="cf-debt-commitments">-£0.00/mo</span>
+                        </div>
+
+                        <!-- UMI Highlight -->
+                        <div class="p-3 bg-cyan-950/20 border border-cyan-800/60 rounded-xl space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[11px] font-bold uppercase text-cyan-300">Uncommitted Monthly Income (UMI)</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-900/60 text-cyan-200 font-bold" id="cf-umi-pct">0% surplus</span>
+                            </div>
+                            <div class="text-xl font-extrabold text-cyan-400" id="cf-umi-amount">£0.00 / mo</div>
+                            <p class="text-[10px] text-slate-400">Free uncommitted cash flow available after meeting all contractual debts, shelter, and essential living costs.</p>
+                        </div>
+
+                        <!-- DTI Ratio -->
+                        <div class="p-2.5 bg-slate-850 rounded-lg space-y-1.5">
+                            <div class="flex justify-between text-[11px]">
+                                <span class="text-slate-400">Debt-to-Income (DTI)</span>
+                                <span class="text-emerald-400 font-bold" id="cf-dti-val">0.0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <div id="cf-dti-bar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 10%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-500 flex justify-between">
+                                <span>Prime &lt;20%</span>
+                                <span>Mainstream &lt;35%</span>
+                                <span>High Risk &gt;50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Underwriter Risk Flags Scanner -->
+                <div class="card space-y-4 border-t-4 border-t-amber-500">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">🛡️</span>
+                            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Risk Flag Scanner</h3>
+                        </div>
+                        <span class="text-[10px] text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800 font-medium">Underwriter Radar</span>
+                    </div>
+
+                    <div class="space-y-2.5 text-xs" id="underwriter-flags-container">
+                        <!-- Flag items rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- 3. Indicative Mortgage Capacity -->
+                <div class="card space-y-4 border-t-4 border-t-emerald-500">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">🏡</span>
+                            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Indicative Mortgage Capacity</h3>
+                        </div>
+                        <span class="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800 font-medium">4.5x Multiplier</span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="p-3 bg-emerald-950/20 border border-emerald-800/60 rounded-xl space-y-1">
+                            <div class="text-[11px] font-bold uppercase text-emerald-300">Net Maximum Borrowing Capacity</div>
+                            <div class="text-2xl font-extrabold text-emerald-400" id="mc-net-capacity">£0.00</div>
+                            <div class="text-[10px] text-slate-400 flex justify-between pt-1">
+                                <span id="mc-gross-base">Gross Base (4.5x): £0.00</span>
+                                <span id="mc-debt-deduction" class="text-rose-400">Debt drag: -£0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div class="p-2.5 bg-slate-850 rounded-lg border border-slate-800">
+                                <div class="text-[10px] text-slate-400 uppercase font-semibold">Indicative 25-yr Fixed</div>
+                                <div class="text-base font-bold text-white mt-0.5" id="mc-indicative-repayment">£0.00<span class="text-[10px] text-slate-500 font-normal">/mo</span></div>
+                                <div class="text-[10px] text-emerald-400 mt-0.5" id="mc-indicative-rate">4.40% rate</div>
+                            </div>
+                            <div class="p-2.5 bg-slate-850 rounded-lg border border-slate-800">
+                                <div class="text-[10px] text-slate-400 uppercase font-semibold">BoE +3% Stress Test</div>
+                                <div class="text-base font-bold text-amber-300 mt-0.5" id="mc-stress-repayment">£0.00<span class="text-[10px] text-slate-500 font-normal">/mo</span></div>
+                                <div class="text-[10px] text-amber-400 mt-0.5" id="mc-stress-rate">7.50% rate</div>
+                            </div>
+                        </div>
+
+                        <div class="p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-[11px] space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Stress Test UMI Headroom:</span>
+                                <span class="font-bold text-emerald-400" id="mc-stress-headroom">+£0.00/mo surplus</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500">MCOB affordability buffer ensures household remains solvent if BoE base rates rise to 7.5%.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Runway & Financial Stress Simulator -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- Stress Scenarios (7 cols) -->
+                <div class="lg:col-span-7 card space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">⚡</span>
+                            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Financial Stress & Runway Simulator</h3>
+                        </div>
+                        <div class="flex items-center space-x-3 text-xs">
+                            <span class="text-slate-400">Comfortable: <strong class="text-emerald-400" id="sim-runway-comfort">0.0 mo</strong></span>
+                            <span class="text-slate-400">Survival: <strong class="text-cyan-400" id="sim-runway-survival">0.0 mo</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3" id="stress-scenarios-container">
+                        <!-- Scenario rows rendered dynamically -->
+                    </div>
+
+                    <!-- Inflation Erosion Drag Callout -->
+                    <div class="p-3 bg-slate-850/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                        <div class="space-y-0.5">
+                            <div class="font-bold text-slate-300 flex items-center space-x-1.5">
+                                <span>📉</span>
+                                <span>UK CPI Inflation Erosion Drag (3.2%)</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500">Uninvested current account cash loses purchasing power every month.</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-rose-400 font-bold" id="sim-inflation-loss">-£0.00 / yr</div>
+                            <div class="text-[10px] text-emerald-400" id="sim-isa-recovery">+£0.00 / yr potential in Cash ISA</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Self-Reported Credit Bureau Tracking (5 cols) -->
+                <div class="lg:col-span-5 card space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-base">📋</span>
+                            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Credit Bureau Tracking</h3>
+                        </div>
+                        <span class="text-[10px] text-slate-400">Self-Reported Baseline</span>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Track your 3 major UK Credit Reference Agency (CRA) scores locally. Modern mortgage underwriters evaluate cash-flow affordability (UMI/DTI) first, but bureau scores verify your identity and credit history.
+                    </p>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Experian (999)</label>
+                                <input type="number" id="input-score-experian" min="0" max="999" placeholder="865" class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Equifax (1000)</label>
+                                <input type="number" id="input-score-equifax" min="0" max="1000" placeholder="740" class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">TransUnion (710)</label>
+                                <input type="number" id="input-score-transunion" min="0" max="710" placeholder="645" class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-2.5 bg-slate-850 rounded-lg border border-slate-800">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="input-score-electoral" class="rounded bg-slate-800 border-slate-700 text-emerald-500 focus:ring-0">
+                                <label for="input-score-electoral" class="text-xs text-slate-300 font-medium cursor-pointer">Registered on UK Electoral Roll</label>
+                            </div>
+                            <span class="text-[10px] text-emerald-400 font-semibold">+15 pts</span>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1">
+                            <span id="credit-save-status" class="text-[11px] text-slate-500">Local SQLite storage</span>
+                            <button onclick="saveCreditScores()" id="btn-save-credit-scores" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-xs transition shadow-sm">
+                                Save Bureau Scores
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prioritized Action Playbook -->
+            <div class="card space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-base">🎯</span>
+                        <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Underwriter Action Playbook</h3>
+                    </div>
+                    <span class="text-[10px] text-slate-400">Automated Remediation Roadmap</span>
+                </div>
+                <div id="credit-playbook-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <!-- Action Playbook cards rendered dynamically -->
+                </div>
+            </div>
+
         </div>
 
         <!-- TAB 4: UK TAX OPTIMIZATION -->
@@ -951,6 +1227,7 @@ DASHBOARD_HTML = """
                     loadNetWorth(),
                     loadTransactionsFeed(),
                     loadWatchdog(),
+                    loadCreditAudit(),
                     loadTaxAudit(),
                     loadSweeper(),
                     loadChatHistory()
@@ -1427,9 +1704,298 @@ DASHBOARD_HTML = """
             `).join('');
         }
 
+        // Credit & Borrowing Health Engine
+        async function loadCreditAudit() {
+            try {
+                const res = await fetch('/api/credit/audit');
+                const data = await res.json();
+                renderCreditAudit(data);
+            } catch (err) {
+                console.error("Credit audit error:", err);
+            }
+        }
+
+        function renderCreditAudit(audit) {
+            if (!audit) return;
+            const score = audit.borrowing_readiness_score || 0;
+            const tier = audit.underwriter_tier || "Mainstream";
+            const badgeColor = audit.tier_badge_color || "blue";
+
+            // Tab badge
+            const tabBadge = document.getElementById('badge-credit-score');
+            if (tabBadge) {
+                tabBadge.innerText = score;
+                tabBadge.className = `px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                    score >= 85 ? 'bg-emerald-950 border-emerald-800 text-emerald-300' :
+                    score >= 70 ? 'bg-blue-950 border-blue-800 text-blue-300' :
+                    score >= 50 ? 'bg-amber-950 border-amber-800 text-amber-300' :
+                    'bg-rose-950 border-rose-800 text-rose-300'
+                }`;
+            }
+
+            // Executive Banner
+            const scoreVal = document.getElementById('credit-score-val');
+            if (scoreVal) {
+                scoreVal.innerText = score;
+                scoreVal.className = score >= 85 ? 'text-emerald-400' : score >= 70 ? 'text-blue-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400';
+            }
+
+            const tierBadge = document.getElementById('credit-tier-badge');
+            if (tierBadge) {
+                tierBadge.innerText = tier;
+                tierBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    badgeColor === 'emerald' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/60' :
+                    badgeColor === 'blue' ? 'bg-blue-900/60 text-blue-300 border border-blue-700/60' :
+                    badgeColor === 'amber' ? 'bg-amber-900/60 text-amber-300 border border-amber-700/60' :
+                    'bg-rose-900/60 text-rose-300 border border-rose-700/60'
+                }`;
+            }
+
+            const tierMemo = document.getElementById('credit-tier-memo');
+            if (tierMemo) tierMemo.innerText = audit.tier_description || "";
+
+            // Component scores
+            const comps = audit.score_breakdown || {};
+            if (comps.cash_flow_affordability && document.getElementById('comp-cashflow')) {
+                document.getElementById('comp-cashflow').innerText = `${comps.cash_flow_affordability.score}/${comps.cash_flow_affordability.max_points}`;
+            }
+            if (comps.debt_to_income && document.getElementById('comp-dti')) {
+                document.getElementById('comp-dti').innerText = `${comps.debt_to_income.score}/${comps.debt_to_income.max_points}`;
+            }
+            if (comps.underwriter_clean_record && document.getElementById('comp-hygiene')) {
+                const s = comps.underwriter_clean_record.score;
+                const m = comps.underwriter_clean_record.max_points;
+                const el = document.getElementById('comp-hygiene');
+                el.innerText = `${s}/${m}`;
+                el.className = s === m ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold';
+            }
+            if (comps.stability_and_identity && document.getElementById('comp-stability')) {
+                document.getElementById('comp-stability').innerText = `${comps.stability_and_identity.score}/${comps.stability_and_identity.max_points}`;
+            }
+
+            // Cash-Flow Affordability
+            const cf = audit.cash_flow_affordability || {};
+            if (document.getElementById('cf-monthly-net')) document.getElementById('cf-monthly-net').innerText = `£${(cf.monthly_net_income || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+            if (document.getElementById('cf-annual-gross')) document.getElementById('cf-annual-gross').innerText = `£${(cf.estimated_annual_gross || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+            if (document.getElementById('cf-fixed-needs')) document.getElementById('cf-fixed-needs').innerText = `-£${(cf.monthly_fixed_needs || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}/mo`;
+            if (document.getElementById('cf-debt-commitments')) document.getElementById('cf-debt-commitments').innerText = `-£${(cf.monthly_committed_debt || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}/mo`;
+            if (document.getElementById('cf-umi-amount')) document.getElementById('cf-umi-amount').innerText = `£${(cf.uncommitted_monthly_income_umi || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})} / mo`;
+            if (document.getElementById('cf-umi-pct')) document.getElementById('cf-umi-pct').innerText = `${cf.umi_surplus_pct || 0}% surplus`;
+            if (document.getElementById('cf-dti-val')) document.getElementById('cf-dti-val').innerText = `${cf.contractual_dti_pct || 0}%`;
+            if (document.getElementById('cf-dti-bar')) {
+                const pct = Math.min(100, (cf.contractual_dti_pct || 0) * 2);
+                document.getElementById('cf-dti-bar').style.width = `${pct}%`;
+                document.getElementById('cf-dti-bar').className = (cf.contractual_dti_pct || 0) > 35 ? 'bg-rose-500 h-1.5 rounded-full' : (cf.contractual_dti_pct || 0) > 20 ? 'bg-amber-500 h-1.5 rounded-full' : 'bg-emerald-500 h-1.5 rounded-full';
+            }
+
+            // Risk Flags Scanner
+            const rf = audit.underwriter_risk_flags || {};
+            const rfContainer = document.getElementById('underwriter-flags-container');
+            if (rfContainer) {
+                rfContainer.innerHTML = `
+                    <div class="p-2.5 bg-slate-850 rounded-lg flex items-center justify-between border ${rf.bnpl_detected ? 'border-amber-800/80 bg-amber-950/20' : 'border-slate-800'}">
+                        <div>
+                            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+                                <span>${rf.bnpl_detected ? '⚠️' : '✅'}</span>
+                                <span>Buy-Now-Pay-Later (BNPL / Klarna)</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${rf.bnpl_summary || 'No BNPL instalments detected'}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rf.bnpl_detected ? 'bg-amber-900/60 text-amber-300' : 'bg-emerald-900/60 text-emerald-300'}">
+                            ${rf.bnpl_detected ? 'Warning' : 'Clean'}
+                        </span>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-850 rounded-lg flex items-center justify-between border ${rf.bounced_direct_debits_detected ? 'border-rose-800/80 bg-rose-950/20' : 'border-slate-800'}">
+                        <div>
+                            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+                                <span>${rf.bounced_direct_debits_detected ? '🚨' : '✅'}</span>
+                                <span>Returned Direct Debits (180d)</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${rf.bounced_direct_debits_detected ? rf.bounced_count + ' returned DD unpaid' : 'Zero returned payments'}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rf.bounced_direct_debits_detected ? 'bg-rose-900/60 text-rose-300' : 'bg-emerald-900/60 text-emerald-300'}">
+                            ${rf.bounced_direct_debits_detected ? 'Action Required' : 'Clean'}
+                        </span>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-850 rounded-lg flex items-center justify-between border ${rf.overdraft_reliance ? 'border-amber-800/80' : 'border-slate-800'}">
+                        <div>
+                            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+                                <span>${rf.overdraft_reliance ? '⚠️' : '✅'}</span>
+                                <span>Overdraft Reliance & Fees</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${rf.overdraft_reliance ? 'Overdraft interest or unarranged fees detected' : 'Operating in surplus (no overdraft charges)'}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rf.overdraft_reliance ? 'bg-amber-900/60 text-amber-300' : 'bg-emerald-900/60 text-emerald-300'}">
+                            ${rf.overdraft_reliance ? 'Caution' : 'Clean'}
+                        </span>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-850 rounded-lg flex items-center justify-between border border-slate-800">
+                        <div>
+                            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+                                <span>${rf.gambling_pct_of_income > 1.0 ? '⚠️' : '✅'}</span>
+                                <span>Gambling Spend Velocity (30d)</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">£${(rf.gambling_spend_30d || 0).toFixed(2)} (${rf.gambling_pct_of_income}% of net income)</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rf.gambling_pct_of_income < 1.0 ? 'bg-emerald-900/60 text-emerald-300' : 'bg-amber-900/60 text-amber-300'}">
+                            ${rf.gambling_risk}
+                        </span>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-850 rounded-lg flex items-center justify-between border border-slate-800">
+                        <div>
+                            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+                                <span>✅</span>
+                                <span>UK Electoral Roll Identity</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${rf.electoral_roll_verified ? 'Registered at current address' : 'Not registered on electoral register'}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rf.electoral_roll_verified ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300'}">
+                            ${rf.electoral_roll_verified ? 'Verified' : 'Missing'}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Mortgage Capacity
+            const mc = audit.mortgage_borrowing_capacity || {};
+            if (document.getElementById('mc-net-capacity')) document.getElementById('mc-net-capacity').innerText = `£${(mc.net_maximum_borrowing_capacity || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+            if (document.getElementById('mc-gross-base')) document.getElementById('mc-gross-base').innerText = `Gross Base (4.5x): £${(mc.gross_income_baseline || 0).toLocaleString('en-GB', {minimumFractionDigits: 0})}`;
+            if (document.getElementById('mc-debt-deduction')) document.getElementById('mc-debt-deduction').innerText = `Debt drag: -£${(mc.debt_commitment_deduction || 0).toLocaleString('en-GB', {minimumFractionDigits: 0})}`;
+            if (document.getElementById('mc-indicative-repayment')) document.getElementById('mc-indicative-repayment').innerHTML = `£${(mc.indicative_monthly_repayment || 0).toFixed(2)}<span class="text-[10px] text-slate-500 font-normal">/mo</span>`;
+            if (document.getElementById('mc-indicative-rate')) document.getElementById('mc-indicative-rate').innerText = `${mc.indicative_rate_pct || 4.40}% rate (25-yr)`;
+            if (document.getElementById('mc-stress-repayment')) document.getElementById('mc-stress-repayment').innerHTML = `£${(mc.stress_tested_monthly_repayment || 0).toFixed(2)}<span class="text-[10px] text-slate-500 font-normal">/mo</span>`;
+            if (document.getElementById('mc-stress-rate')) document.getElementById('mc-stress-rate').innerText = `${mc.stress_tested_rate_pct || 7.50}% stress test`;
+
+            const stressHeadroom = Math.round((cf.uncommitted_monthly_income_umi || 0) - (mc.stress_tested_monthly_repayment || 0));
+            const headroomEl = document.getElementById('mc-stress-headroom');
+            if (headroomEl) {
+                headroomEl.innerText = `${stressHeadroom >= 0 ? '+' : ''}£${stressHeadroom.toLocaleString('en-GB')}/mo surplus`;
+                headroomEl.className = stressHeadroom >= 0 ? 'font-bold text-emerald-400' : 'font-bold text-rose-400';
+            }
+
+            // Stress & Runway Simulator
+            const er = audit.emergency_runway_and_stress || {};
+            if (document.getElementById('sim-runway-comfort')) document.getElementById('sim-runway-comfort').innerText = `${er.comfortable_runway_months || 0} mo`;
+            if (document.getElementById('sim-runway-survival')) document.getElementById('sim-runway-survival').innerText = `${er.survival_runway_months || 0} mo`;
+
+            const scenContainer = document.getElementById('stress-scenarios-container');
+            if (scenContainer && er.scenarios) {
+                scenContainer.innerHTML = er.scenarios.map(sc => `
+                    <div class="p-3 bg-slate-850 rounded-xl border border-slate-800 space-y-1.5">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="font-bold text-slate-200 text-xs">${sc.name}</div>
+                                <div class="text-[11px] text-slate-400">${sc.description}</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                                sc.status ? (sc.status.includes('Resilient') ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300') :
+                                sc.absorbed_comfortably !== undefined ? (sc.absorbed_comfortably ? 'bg-emerald-900/60 text-emerald-300' : 'bg-amber-900/60 text-amber-300') :
+                                sc.is_affordable ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300'
+                            }">
+                                ${sc.status || (sc.absorbed_comfortably ? 'Absorbed Comfortably' : (sc.is_affordable ? 'Affordable' : 'Tight Margin'))}
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 flex items-center space-x-3 pt-1 border-t border-slate-800/60">
+                            ${sc.comfortable_months !== undefined ? `<span>Comfortable Runway: <strong class="text-white">${sc.comfortable_months} mo</strong></span>` : ''}
+                            ${sc.survival_months !== undefined ? `<span>Survival Runway: <strong class="text-emerald-400">${sc.survival_months} mo</strong></span>` : ''}
+                            ${sc.remaining_cash !== undefined ? `<span>Remaining Cash: <strong class="text-white">£${sc.remaining_cash.toLocaleString('en-GB', {minimumFractionDigits: 2})}</strong></span>` : ''}
+                            ${sc.remaining_runway_months !== undefined ? `<span>Runway: <strong class="text-emerald-400">${sc.remaining_runway_months} mo</strong></span>` : ''}
+                            ${sc.new_umi !== undefined ? `<span>Adjusted UMI: <strong class="text-white">£${sc.new_umi.toFixed(2)}/mo</strong></span>` : ''}
+                            ${sc.new_dti_pct !== undefined ? `<span>New DTI: <strong class="text-cyan-400">${sc.new_dti_pct}%</strong></span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const inf = er.inflation_erosion || {};
+            if (document.getElementById('sim-inflation-loss')) document.getElementById('sim-inflation-loss').innerText = `-£${(inf.annual_purchasing_power_loss_gbp || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})} / yr`;
+            if (document.getElementById('sim-isa-recovery')) document.getElementById('sim-isa-recovery').innerText = `+£${(inf.cash_isa_recovery_gain_gbp || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})} / yr in Top Cash ISA`;
+
+            // Bureau Scores inputs
+            const bs = audit.bureau_scores || {};
+            if (document.getElementById('input-score-experian') && bs.experian !== null && bs.experian !== undefined) {
+                document.getElementById('input-score-experian').value = bs.experian;
+            }
+            if (document.getElementById('input-score-equifax') && bs.equifax !== null && bs.equifax !== undefined) {
+                document.getElementById('input-score-equifax').value = bs.equifax;
+            }
+            if (document.getElementById('input-score-transunion') && bs.transunion !== null && bs.transunion !== undefined) {
+                document.getElementById('input-score-transunion').value = bs.transunion;
+            }
+            if (document.getElementById('input-score-electoral')) {
+                document.getElementById('input-score-electoral').checked = bs.electoral_roll !== false;
+            }
+
+            // Action Playbook
+            const playbook = audit.action_playbook || [];
+            const pbContainer = document.getElementById('credit-playbook-cards');
+            if (pbContainer) {
+                if (playbook.length === 0) {
+                    pbContainer.innerHTML = `<div class="col-span-3 text-center py-4 text-xs text-slate-500">Your profile is prime. No immediate corrective underwriter actions required.</div>`;
+                } else {
+                    pbContainer.innerHTML = playbook.map(card => {
+                        const isCrit = card.priority === 'CRITICAL';
+                        const isHigh = card.priority === 'HIGH';
+                        const borderCls = isCrit ? 'border-l-4 border-l-rose-500' : isHigh ? 'border-l-4 border-l-amber-500' : 'border-l-4 border-l-blue-500';
+                        const badgeCls = isCrit ? 'bg-rose-950 text-rose-300 border-rose-800' : isHigh ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-blue-950 text-blue-300 border-blue-800';
+                        return `
+                            <div class="card p-4 space-y-2 ${borderCls}">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] px-2 py-0.5 rounded font-bold uppercase border ${badgeCls}">${card.priority}</span>
+                                    <span class="text-[10px] text-slate-500 uppercase font-semibold">Underwriter Guidance</span>
+                                </div>
+                                <div class="font-bold text-xs text-white">${card.title}</div>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">${card.action}</p>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        async function saveCreditScores() {
+            const expVal = document.getElementById('input-score-experian').value;
+            const eqVal = document.getElementById('input-score-equifax').value;
+            const tuVal = document.getElementById('input-score-transunion').value;
+            const elVal = document.getElementById('input-score-electoral').checked;
+            const statusEl = document.getElementById('credit-save-status');
+            const btn = document.getElementById('btn-save-credit-scores');
+
+            if (btn) btn.disabled = true;
+            if (statusEl) statusEl.innerText = "Saving to SQLite...";
+
+            try {
+                const res = await fetch('/api/credit/scores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        experian: expVal ? parseInt(expVal) : null,
+                        equifax: eqVal ? parseInt(eqVal) : null,
+                        transunion: tuVal ? parseInt(tuVal) : null,
+                        electoral_roll: elVal
+                    })
+                });
+                const result = await res.json();
+                if (statusEl) {
+                    statusEl.innerText = "✓ Saved & re-audited";
+                    setTimeout(() => { statusEl.innerText = "Local SQLite storage"; }, 3000);
+                }
+                await loadCreditAudit();
+            } catch (err) {
+                console.error("Failed to save credit scores:", err);
+                if (statusEl) statusEl.innerText = "Error saving scores";
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
         // Navigation Tabs
         function switchMainTab(tabId) {
-            ['overview', 'networth', 'transactions', 'watchdog', 'tax', 'sweep', 'scout', 'walkthrough'].forEach(t => {
+            ['overview', 'networth', 'transactions', 'watchdog', 'credit', 'tax', 'sweep', 'scout', 'walkthrough'].forEach(t => {
                 const sec = document.getElementById(`section-${t}`);
                 if (sec) sec.classList.add('hidden');
                 const btn = document.getElementById(`tab-btn-${t}`);
@@ -1441,6 +2007,8 @@ DASHBOARD_HTML = """
             if (activeBtn) activeBtn.className = 'px-3.5 py-1.5 bg-slate-800 text-emerald-400 rounded-lg whitespace-nowrap';
             if (tabId === 'transactions') {
                 loadTransactionsFeed();
+            } else if (tabId === 'credit') {
+                loadCreditAudit();
             }
         }
 
