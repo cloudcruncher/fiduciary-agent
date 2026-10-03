@@ -68,20 +68,26 @@ def detect_bank_from_text(filename: str, full_text: str) -> Tuple[str, str]:
 def parse_date_str(raw: str, default_year: int = 2026) -> Optional[str]:
     """Normalizes varied date formats into YYYY-MM-DD."""
     raw = raw.strip()
-    # DD/MM/YYYY or DD-MM-YYYY
+    # YYYY-MM-DD or YYYY/MM/DD
+    m = re.match(r"^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$", raw)
+    if m:
+        year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return f"{year:04d}-{month:02d}-{day:02d}"
+
+    # DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
     m = re.match(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$", raw)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
         return f"{year:04d}-{month:02d}-{day:02d}"
 
-    # DD/MM/YY
+    # DD/MM/YY or DD-MM-YY
     m = re.match(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})$", raw)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), 2000 + int(m.group(3))
         return f"{year:04d}-{month:02d}-{day:02d}"
 
-    # DD Mon YYYY (e.g. 15 Sep 2026 or 15 September 2026)
-    m = re.match(r"^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$", raw)
+    # DD-Mon-YYYY or DD Mon YYYY (e.g. 15 Sep 2026 or 15-Sep-2026)
+    m = re.match(r"^(\d{1,2})[\s-]+([A-Za-z]+)[\s-]+(\d{4})$", raw)
     if m:
         day = int(m.group(1))
         mon_str = m.group(2).lower()
@@ -90,8 +96,8 @@ def parse_date_str(raw: str, default_year: int = 2026) -> Optional[str]:
         if mon:
             return f"{year:04d}-{mon:02d}-{day:02d}"
 
-    # DD Mon YY (e.g. 15 Sep 26)
-    m = re.match(r"^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2})$", raw)
+    # DD-Mon-YY or DD Mon YY (e.g. 15 Sep 26 or 15-Sep-26)
+    m = re.match(r"^(\d{1,2})[\s-]+([A-Za-z]+)[\s-]+(\d{2})$", raw)
     if m:
         day = int(m.group(1))
         mon_str = m.group(2).lower()
@@ -100,8 +106,8 @@ def parse_date_str(raw: str, default_year: int = 2026) -> Optional[str]:
         if mon:
             return f"{year:04d}-{mon:02d}-{day:02d}"
 
-    # DD Mon (e.g. 15 Sep)
-    m = re.match(r"^(\d{1,2})\s+([A-Za-z]+)$", raw)
+    # DD-Mon or DD Mon (e.g. 15 Sep or 15-Sep)
+    m = re.match(r"^(\d{1,2})[\s-]+([A-Za-z]+)$", raw)
     if m:
         day = int(m.group(1))
         mon_str = m.group(2).lower()
@@ -234,9 +240,9 @@ class PDFStatementParser:
                     detected_balance = cleaned
 
         # Regex for finding lines that begin with a Date
-        # Supports: "15 Sep 2026", "15/09/2026", "15-09-2026", "15 Sep", etc.
+        # Supports: "2026-09-15", "15/09/2026", "15-09-2026", "15.09.2026", "15 Sep 2026", "15-Sep-2026", "15 Sep", etc.
         date_pattern = re.compile(
-            r"^(\d{1,2}(?:/\d{1,2}/(?:\d{4}|\d{2})|\s+[A-Za-z]{3,9}(?:\s+(?:\d{4}|\d{2}))?|\.\d{1,2}\.\d{2,4}))\s+(.*)$"
+            r"^(\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2})|\d{1,2}[\s-]+[A-Za-z]{3,9}(?:[\s-]+(?:\d{4}|\d{2}))?)\s+(.*)$"
         )
 
         # Regex for amounts at the end of a line (e.g. "-12.50", "£12.50", "12.50 1,450.00")
@@ -257,25 +263,51 @@ class PDFStatementParser:
 
                 # Find all money figures on this line
                 amounts = amount_finder.findall(rest)
+
+                # If no amounts on this line, check if the amount appears on the immediately following line
+                if not amounts and i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    next_amounts = amount_finder.findall(next_line)
+                    if next_amounts and not date_pattern.match(next_line):
+                        rest = f"{rest} {next_line}"
+                        amounts = next_amounts
+                        i += 1
+
                 if amounts:
-                    # In many bank statements, the last figure is the running balance, and the preceding is the transaction amount.
-                    # e.g. "TESCO STORES 14.50 1,245.50"
+                    desc = ""
                     running_bal = None
                     if len(amounts) >= 2:
                         tx_amt_raw = amounts[-2]
                         bal_raw = amounts[-1]
-                        desc = rest[:rest.rfind(tx_amt_raw)].strip()
+                        idx = rest.rfind(tx_amt_raw)
+                        desc = rest[:idx].strip() if idx != -1 else rest.strip()
                         running_bal = clean_amount(bal_raw)
                         if detected_balance is None and running_bal is not None:
                             detected_balance = running_bal
                     else:
                         tx_amt_raw = amounts[-1]
+                        idx = rest.rfind(tx_amt_raw)
+                        desc = rest[:idx].strip() if idx != -1 else ""
+                        if not desc:
+                            desc = rest[idx + len(tx_amt_raw):].strip()
+
+                    # Check if next line is continuation of description (e.g. no date and no amount)
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1].strip()
+                        if not date_pattern.match(next_line) and not amount_finder.search(next_line):
+                            if not any(k in next_line.lower() for k in ["page ", "statement", "sort code", "account no", "iban", "bic", "swift"]):
+                                desc = f"{desc} {next_line}".strip()
+                                i += 1
+
+                    if not desc:
+                        desc = "Bank Transaction"
+
                     amt = clean_amount(tx_amt_raw)
                     if any(k in desc.lower() for k in ["brought forward", "carried forward", "opening balance", "closing balance", "balance from previous"]):
                         i += 1
                         continue
 
-                    if amt is not None and desc:
+                    if amt is not None:
                         # Clean up description
                         desc_clean = re.sub(r"^(?:CARD PAYMENT TO|DIRECT DEBIT TO|FASTER PAYMENT TO|PAYMENT TO|DD|BACS|SO|POS|DEB|CP)\s*", "", desc, flags=re.IGNORECASE).strip()
                         if not desc_clean:
