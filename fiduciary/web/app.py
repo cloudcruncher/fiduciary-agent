@@ -1546,7 +1546,13 @@ DASHBOARD_HTML = """
                 const dot = document.getElementById('llm-status-dot');
                 const subhead = document.getElementById('copilot-subhead-status');
 
-                if (data.mode === 'local') {
+                if (data.mode === 'gateway') {
+                    const gwModel = data.gateway_model || 'LiteLLM Proxy';
+                    if (text) text.innerHTML = `<strong>AI Gateway</strong> <span class="text-blue-400 font-semibold">(${gwModel})</span>`;
+                    if (dot) dot.className = "w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400 animate-pulse";
+                    if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-blue-950/40 border border-blue-700/60 rounded-full text-xs font-medium cursor-pointer hover:border-blue-500 transition";
+                    if (subhead) subhead.innerHTML = `🔵 AI Gateway (${gwModel}) • Enterprise Router`;
+                } else if (data.mode === 'local') {
                     const localProvName = data.local_provider === 'ollama' ? 'Local Ollama' : 'Local LM Studio';
                     if (text) text.innerHTML = `<strong>${localProvName}</strong> <span class="text-emerald-400 font-semibold">(100% Private)</span>`;
                     if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse";
@@ -1558,13 +1564,13 @@ DASHBOARD_HTML = """
                     if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-purple-950/40 border border-purple-700/60 rounded-full text-xs font-medium cursor-pointer hover:border-purple-500 transition";
                     if (subhead) subhead.innerHTML = `🟣 Google Gemini Cloud API`;
                 } else {
-                    if (text) text.innerHTML = `<span class="text-slate-400">Offline (Start Ollama / LM Studio)</span>`;
+                    if (text) text.innerHTML = `<span class="text-slate-400">Offline (Start Ollama / Gateway)</span>`;
                     if (dot) dot.className = "w-2 h-2 rounded-full bg-slate-500";
                     if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs font-medium cursor-pointer";
                     if (subhead) subhead.innerHTML = `⚠️ No AI Model Connected`;
                 }
 
-                ['local', 'gemini', 'auto'].forEach(p => {
+                ['local', 'gemini', 'auto', 'gateway'].forEach(p => {
                     const el = document.getElementById(`opt-provider-${p}`);
                     if (el) {
                         if (data.configured_provider === p) {
@@ -2642,10 +2648,13 @@ def remove_custom_asset(acc_id: str):
     save_net_worth_snapshot()
     return {"status": "deleted", "id": acc_id}
 
+@app.get("/guide.html", response_class=HTMLResponse)
 @app.get("/guide", response_class=HTMLResponse)
 def guide_view():
     return HTMLResponse(content=GUIDE_HTML)
 
+@app.get("/architecture.html", response_class=HTMLResponse)
+@app.get("/index.html", response_class=HTMLResponse)
 @app.get("/architecture", response_class=HTMLResponse)
 def architecture_view():
     return HTMLResponse(content=ARCHITECTURE_HTML)
@@ -2658,9 +2667,15 @@ def get_llm_status():
 
 @app.post("/api/llm/provider")
 def set_llm_provider(req: LLMProviderRequest):
-    from fiduciary.agent.llm_client import LLMClient, set_runtime_provider
+    from fiduciary.agent.llm_client import (
+        LLMClient,
+        ensure_gateway_running,
+        set_runtime_provider,
+    )
     if req.provider not in ("auto", "local", "gemini", "gateway"):
         raise HTTPException(status_code=400, detail="Invalid provider")
+    if req.provider == "gateway":
+        ensure_gateway_running()
     set_runtime_provider(req.provider)
     client = LLMClient()
     return client.get_status()

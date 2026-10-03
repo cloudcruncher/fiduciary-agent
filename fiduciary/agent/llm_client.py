@@ -24,6 +24,77 @@ def set_runtime_provider(provider: str) -> None:
 def get_runtime_provider() -> Optional[str]:
     return _RUNTIME_PROVIDER
 
+
+def ensure_gateway_running(gateway_url: Optional[str] = None) -> bool:
+    """
+    If the gateway is targeted to local port 4000 (e.g. 127.0.0.1:4000 / localhost:4000)
+    and is not currently responding, automatically spawn the LiteLLM proxy in the background.
+    """
+    import shutil
+    import subprocess
+    import time
+
+    from fiduciary.config import BASE_DIR
+
+    target_url = (gateway_url or os.getenv("AI_GATEWAY_URL") or "http://localhost:4000/v1").rstrip("/")
+    if "localhost:4000" not in target_url and "127.0.0.1:4000" not in target_url:
+        return False
+
+    api_key = os.getenv("AI_GATEWAY_API_KEY", "")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+    def _is_alive() -> bool:
+        try:
+            resp = requests.get(f"{target_url}/models", timeout=0.8, headers=headers)
+            if resp.status_code in (200, 401):
+                return True
+        except Exception:
+            pass
+        try:
+            root_url = target_url.replace("/v1", "")
+            if requests.get(f"{root_url}/health/liveliness", timeout=0.8).status_code == 200:
+                return True
+        except Exception:
+            pass
+        return False
+
+    if _is_alive():
+        return True
+
+    litellm_bin = shutil.which("litellm")
+    if not litellm_bin:
+        venv_bin = BASE_DIR / ".venv" / "bin" / "litellm"
+        if venv_bin.exists():
+            litellm_bin = str(venv_bin)
+
+    if not litellm_bin:
+        return False
+
+    config_path = BASE_DIR / "litellm_config.yaml"
+    cmd = [
+        litellm_bin,
+        "--config", str(config_path),
+        "--port", "4000",
+        "--host", "127.0.0.1"
+    ]
+    try:
+        subprocess.Popen(
+            cmd,
+            cwd=str(BASE_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        for _ in range(12):
+            time.sleep(0.25)
+            if _is_alive():
+                return True
+    except Exception:
+        return False
+
+    return False
+
+
 class LLMClient:
     """
     Unified LLM Client supporting both 100% Local Offline Privacy (LM Studio / Ollama)
@@ -67,7 +138,7 @@ class LLMClient:
             headers["Authorization"] = f"Bearer {self.gateway_api_key}"
         return headers
 
-    def is_gateway_server_running(self) -> Tuple[bool, Optional[str]]:
+    def is_gateway_server_running(self, auto_start: bool = True) -> Tuple[bool, Optional[str]]:
         """
         Probes configured AI Gateway (LiteLLM Proxy, Portkey, Cloudflare AI Gateway, etc.).
         Returns (is_running, model_name).
@@ -85,6 +156,11 @@ class LLMClient:
                 return True, self.gateway_model
         except Exception:
             pass
+
+        if auto_start and self.provider == "gateway" and ("localhost:4000" in self.gateway_url or "127.0.0.1:4000" in self.gateway_url):
+            if ensure_gateway_running(self.gateway_url):
+                return self.is_gateway_server_running(auto_start=False)
+
         return False, None
 
     def is_local_server_running(self) -> Tuple[bool, Optional[str], Optional[str]]:

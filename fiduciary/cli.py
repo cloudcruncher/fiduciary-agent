@@ -507,8 +507,12 @@ def cmd_ui(args):
     """Launch clean local web dashboard."""
     import uvicorn
 
-    from fiduciary.config import PORT
+    from fiduciary.agent.llm_client import ensure_gateway_running
+    from fiduciary.config import LLM_PROVIDER, PORT
+
     init_db()
+    if LLM_PROVIDER == "gateway":
+        ensure_gateway_running()
     console.print(Panel.fit(
         f"[bold green]🌐 LOCAL FIDUCIARY DASHBOARD ACTIVE[/bold green]\n\n"
         f"Open in your browser: [bold cyan]http://localhost:{PORT}[/bold cyan]\n"
@@ -566,6 +570,12 @@ def cmd_gateway(args):
 def cmd_copilot(args):
     """Interact with the live Fiduciary Copilot."""
     init_db()
+    from fiduciary.agent.llm_client import ensure_gateway_running
+    from fiduciary.config import LLM_PROVIDER
+
+    if LLM_PROVIDER == "gateway":
+        ensure_gateway_running()
+
     copilot = AICopilotEngine()
     query = getattr(args, "query", None)
     if query:

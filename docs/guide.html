@@ -24,6 +24,14 @@
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (isLocal) {
+                document.querySelectorAll('.local-only-link').forEach(el => el.classList.remove('hidden'));
+            }
+        });
+    </script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased pb-20 selection:bg-emerald-500 selection:text-black">
 
@@ -37,12 +45,15 @@
                     <p class="text-[11px] text-slate-400">System Walkthrough & Operating Guide</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-3">
-                <a href="https://github.com/cloudcruncher/fiduciary-agent" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 font-semibold transition flex items-center space-x-1.5 text-xs">
+            <div class="flex items-center space-x-3 text-xs">
+                <a href="/" class="local-only-link hidden px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 font-semibold transition">
+                    ← Back to Dashboard
+                </a>
+                <a href="https://github.com/cloudcruncher/fiduciary-agent" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 font-semibold transition flex items-center space-x-1.5">
                     <span>💻</span>
                     <span>GitHub Repo</span>
                 </a>
-                <a href="index.html" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded-lg text-white transition flex items-center space-x-1.5 shadow">
+                <a href="index.html" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-lg text-white transition flex items-center space-x-1.5 shadow">
                     <span>🏛️ System Architecture</span>
                 </a>
             </div>
@@ -440,8 +451,9 @@
     </main>
 
     <!-- Sticky Bottom Bar -->
-    <div class="fixed bottom-0 inset-x-0 bg-slate-900/90 border-t border-slate-800 backdrop-blur py-3 text-center text-xs">
-        <a href="/" class="text-emerald-400 hover:text-emerald-300 font-semibold">← Return to Personal Fiduciary Dashboard</a>
+    <div class="fixed bottom-0 inset-x-0 bg-slate-900/90 border-t border-slate-800 backdrop-blur py-3 text-center text-xs space-x-3">
+        <a href="index.html" class="text-emerald-400 hover:text-emerald-300 font-semibold">← View System Architecture & Topology</a>
+        <a href="/" class="local-only-link hidden text-slate-400 hover:text-slate-200 font-medium">| Return to Live Dashboard</a>
     </div>
 
 </body>
