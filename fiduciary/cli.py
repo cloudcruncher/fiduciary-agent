@@ -631,10 +631,11 @@ def cmd_credit(args):
 
     a = CreditAffordabilityEngine.run_full_audit()
     cf = a["cash_flow_affordability"]
-    color = a["tier_badge_color"]
+    color_map = {"emerald": "green", "blue": "blue", "amber": "yellow", "rose": "red"}
+    rich_color = color_map.get(a.get("tier_badge_color"), "green")
     console.print(Panel(
-        f"[bold {color}]{a['borrowing_readiness_score']}/100 — {a['underwriter_tier']}[/bold {color}]\n{a['tier_description']}",
-        title="🏦 Borrowing Readiness (Underwriter View)", border_style=color))
+        f"[bold {rich_color}]{a['borrowing_readiness_score']}/100 — {a['underwriter_tier']}[/bold {rich_color}]\n{a['tier_description']}",
+        title="🏦 Borrowing Readiness (Underwriter View)", border_style=rich_color))
 
     t = Table(title="Cash-Flow Affordability", border_style="cyan")
     t.add_column("Metric")
