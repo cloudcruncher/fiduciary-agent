@@ -1,0 +1,85 @@
+# ==============================================================================
+# Fiduciary Agent - Git Ignore Rules
+# Strictly prevents private financial records, credentials, and tokens from leaking
+# ==============================================================================
+
+# Environment & Live Credentials
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+credentials.json
+token.json
+tokens.json
+
+# Private Financial Databases & Statements
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/*.csv
+data/*.pdf
+data/*.xlsx
+data/*.xls
+data/*.ofx
+data/*.qif
+!data/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing & Linting
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+.cache
+.ruff_cache/
+.mypy_cache/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Build and Distribution Artifacts
+dist/
+build/
+*.egg-info/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Temporary & Log Files
+*.log
+logs/
+scratch/
+tmp/

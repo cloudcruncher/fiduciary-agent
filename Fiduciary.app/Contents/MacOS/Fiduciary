@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Native macOS Launcher for Fiduciary Harness
+set -e
+
+# Auto-resolve project directory relative to the .app bundle or current working directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$APP_DIR}"
+cd "$PROJECT_DIR"
+
+# Ensure PATH includes uv and local binaries
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
+# Auto-start LM Studio server if installed and not running
+if [ -x "$HOME/.cache/lm-studio/bin/lms" ]; then
+    if ! curl -s http://localhost:1234/v1/models >/dev/null 2>&1; then
+        "$HOME/.cache/lm-studio/bin/lms" server start >/dev/null 2>&1 &
+    fi
+fi
+
+# Check if Fiduciary server is running on port 8080
+if ! curl -s http://localhost:8080/api/state >/dev/null 2>&1; then
+    /opt/homebrew/bin/uv run uvicorn fiduciary.web.app:app --host 127.0.0.1 --port 8080 >/dev/null 2>&1 &
+    
+    # Wait for server to bind
+    for i in {1..25}; do
+        if curl -s http://localhost:8080/api/state >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+fi
+
+# Open as standalone borderless desktop app window
+if [ -d "/Applications/Google Chrome.app" ]; then
+    open -na "Google Chrome" --args --app="http://localhost:8080" --window-size=1280,900
+elif [ -d "/Applications/Brave Browser.app" ]; then
+    open -na "Brave Browser" --args --app="http://localhost:8080" --window-size=1280,900
+elif [ -d "/Applications/Arc.app" ]; then
+    open -na "Arc" "http://localhost:8080"
+else
+    open "http://localhost:8080"
+fi

@@ -1,0 +1,51 @@
+# ==============================================================================
+# Gitleaks Configuration for Personal Fiduciary Agent
+# Prevents accidental commits of UK Open Banking & Financial API secrets
+# ==============================================================================
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for documentation, environment templates, and test mocks"
+paths = [
+  '''^\.env\.example$''',
+  '''^README\.md$''',
+  '''^docs/.*$''',
+  '''^tests/.*$''',
+]
+regexes = [
+  '''your_.*_here''',
+  '''your_application_id_here''',
+  '''your_client_id''',
+  '''your_client_secret''',
+  '''your_wise_api_token''',
+  '''tlcs_live_placeholder''',
+  '''uk_market_quotes_v1''',
+  '''access_123''',
+  '''refresh_456''',
+  '''test_.*''',
+]
+
+# Custom Rule: TrueLayer Client Secrets (Live and Sandbox)
+[[rules]]
+id = "truelayer-client-secret"
+description = "Detected TrueLayer UK Open Banking Client Secret (Live or Sandbox)"
+regex = '''tlcs_(live|sandbox)_[a-zA-Z0-9_-]{20,}'''
+secretGroup = 0
+keywords = ["tlcs_live", "tlcs_sandbox"]
+
+# Custom Rule: Wise API Personal Access Tokens
+[[rules]]
+id = "wise-api-token"
+description = "Detected Wise (TransferWise) Read-Only or Full API Token"
+regex = '''(?i)(wise_api_token|wise_token)\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["']?'''
+secretGroup = 0
+keywords = ["wise_api_token", "wise_token"]
+
+# Custom Rule: Enable Banking Private Keys
+[[rules]]
+id = "enable-banking-key"
+description = "Detected Enable Banking ASPSP Private Key"
+regex = '''-----BEGIN (RSA |EC )?PRIVATE KEY-----'''
+keywords = ["BEGIN RSA PRIVATE KEY", "BEGIN EC PRIVATE KEY", "BEGIN PRIVATE KEY"]

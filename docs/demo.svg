@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 680" width="940" height="680" fill="none">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#090d13" />
+    </linearGradient>
+    <linearGradient id="copilot-border" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8957e5" />
+      <stop offset="100%" stop-color="#388bfd" />
+    </linearGradient>
+    <linearGradient id="judge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#238636" />
+      <stop offset="100%" stop-color="#2ea043" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .text-title { font-size: 13px; font-weight: 600; fill: #8b949e; }
+    .text-prompt { font-size: 13px; font-weight: 700; fill: #58a6ff; }
+    .text-cmd { font-size: 13px; font-weight: 600; fill: #f0f6fc; }
+    .text-body { font-size: 12.5px; fill: #c9d1d9; }
+    .text-dim { font-size: 12px; fill: #8b949e; }
+    .text-green { font-size: 12.5px; font-weight: 600; fill: #3fb950; }
+    .text-yellow { font-size: 12.5px; font-weight: 600; fill: #d29922; }
+    .text-cyan { font-size: 12.5px; font-weight: 600; fill: #79c0ff; }
+    .text-purple { font-size: 12.5px; font-weight: 600; fill: #d2a8ff; }
+    .badge { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  </style>
+
+  <!-- Window Frame -->
+  <rect x="1" y="1" width="938" height="678" rx="14" fill="url(#bg-grad)" stroke="#30363d" stroke-width="1.5" />
+  
+  <!-- Titlebar -->
+  <line x1="1" y1="44" x2="939" y2="44" stroke="#21262d" stroke-width="1" />
+  <circle cx="24" cy="22" r="6" fill="#ff5f56" stroke="#e0443e" stroke-width="0.5" />
+  <circle cx="44" cy="22" r="6" fill="#ffbd2e" stroke="#dea123" stroke-width="0.5" />
+  <circle cx="64" cy="22" r="6" fill="#27c93f" stroke="#1aab29" stroke-width="0.5" />
+  <text x="470" y="27" text-anchor="middle" class="font-mono text-title">fiduciary — 100% Local Apple Silicon Engine (Ollama qwen3.5:4b • Metal GPU)</text>
+
+  <!-- SECTION 1: SEED & SPENDING INSIGHT ENGINE -->
+  <g transform="translate(24, 68)">
+    <text x="0" y="0" class="font-mono text-prompt">$ <tspan class="text-cmd">./f spending pubs</tspan></text>
+    
+    <!-- Pubs Insight Box -->
+    <rect x="0" y="12" width="892" height="116" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1" stroke-opacity="0.6" />
+    <text x="16" y="34" class="font-mono text-yellow">🔍 SPENDING INSIGHT: 'PUBS'</text>
+    
+    <text x="16" y="58" class="font-mono text-body">• Verified spend on <tspan font-weight="700" fill="#f0f6fc">Pubs &amp; Bars</tspan>: <tspan class="text-green">£108.75 across 13 visits</tspan> (Average: <tspan class="text-green">£8.37/visit</tspan>)</text>
+    <text x="16" y="78" class="font-mono text-dim">• Venues: The Carpenters Arms, Kings Arms, Tap On The Line Kew, Wheatsheaf Borough, Blackfriar</text>
+    <text x="16" y="98" class="font-mono text-body">• Parent Category Total (<tspan fill="#79c0ff">Dining, Pubs &amp; Entertainment</tspan>): <tspan class="text-cyan">£439.33</tspan> across 28 transactions</text>
+    <text x="16" y="116" class="font-mono text-dim">• Recent 30-day run rate: £254.55 across 19 transactions</text>
+  </g>
+
+  <!-- SECTION 2: INTELLIGENT CUSTOMER PROFILE (DNA & HEALTH SCORE) -->
+  <g transform="translate(24, 230)">
+    <text x="0" y="0" class="font-mono text-prompt">$ <tspan class="text-cmd">./f profile</tspan></text>
+    
+    <!-- Profile Box -->
+    <rect x="0" y="12" width="892" height="106" rx="8" fill="#161b22" stroke="#388bfd" stroke-width="1" stroke-opacity="0.6" />
+    <text x="16" y="34" class="font-mono text-cyan">🧬 FINANCIAL HEALTH SCORE: 75.3 / 100 <tspan fill="#3fb950">(GRADE: B STRONG)</tspan></text>
+    <text x="16" y="56" class="font-mono text-body">Financial DNA: <tspan class="text-purple">Buffer Builder with High Cognitive Friction</tspan> (6 manual micro-top-ups)</text>
+    
+    <!-- Metric Pills -->
+    <rect x="16" y="72" width="190" height="28" rx="6" fill="#0d1117" stroke="#30363d" />
+    <text x="26" y="90" class="font-mono text-dim">Runway: <tspan class="text-green">300.0 Days</tspan> (30/30)</text>
+
+    <rect x="216" y="72" width="220" height="28" rx="6" fill="#0d1117" stroke="#30363d" />
+    <text x="226" y="90" class="font-mono text-dim">Idle Cash Drag: <tspan class="text-yellow">£5,219 @ 0%</tspan></text>
+
+    <rect x="446" y="72" width="220" height="28" rx="6" fill="#0d1117" stroke="#30363d" />
+    <text x="456" y="90" class="font-mono text-dim">50/30/20: <tspan class="text-cyan">24.9% Needs / 75% Wants</tspan></text>
+
+    <rect x="676" y="72" width="200" height="28" rx="6" fill="#0d1117" stroke="#30363d" />
+    <text x="686" y="90" class="font-mono text-dim">Active Direct Debits: <tspan class="text-green">3 Verified</tspan></text>
+  </g>
+
+  <!-- SECTION 3: GROUNDED AI COPILOT REASONING -->
+  <g transform="translate(24, 380)">
+    <text x="0" y="0" class="font-mono text-prompt">$ <tspan class="text-cmd">./f copilot &quot;Can I afford a £1,500 holiday in July without breaking my buffer?&quot;</tspan></text>
+    
+    <!-- Copilot Box -->
+    <rect x="0" y="12" width="892" height="136" rx="8" fill="#161b22" stroke="url(#copilot-border)" stroke-width="1.2" />
+    <text x="16" y="34" class="font-mono text-purple">💬 AI FIDUCIARY COPILOT <tspan class="badge" fill="#3fb950">• VERIFIED GROUNDED (100%)</tspan></text>
+    
+    <text x="16" y="58" class="font-mono text-body">&quot;Yes, you can comfortably afford the £1,500 holiday. You currently have <tspan class="text-green">£7,541.86</tspan> in total liquid</text>
+    <text x="16" y="76" class="font-mono text-body">cash across your NatWest, Revolut, and Wise accounts. Subtracting the £1,500 holiday cost leaves</text>
+    <text x="16" y="94" class="font-mono text-body"><tspan class="text-green">£6,041.86</tspan>, which safely exceeds your calibrated 3-month resilience reserve of <tspan class="text-cyan">£2,277.90</tspan></text>
+    <text x="16" y="112" class="font-mono text-body">(based on your verified living expenses of £25.31/day).&quot;</text>
+    
+    <!-- Footer telemetry -->
+    <line x1="0" y1="124" x2="892" y2="124" stroke="#21262d" stroke-width="1" />
+    <text x="16" y="138" class="font-mono text-dim">⚡ Latency: 840ms • Engine: Ollama (qwen3.5:4b) on Metal GPU • Cloud Egress: 0 bytes • Grounding Score: 1.00</text>
+  </g>
+
+  <!-- SECTION 4: LLM-AS-A-JUDGE OBSERVABILITY -->
+  <g transform="translate(24, 558)">
+    <text x="0" y="0" class="font-mono text-prompt">$ <tspan class="text-cmd">./f judge --latest</tspan></text>
+    
+    <rect x="0" y="12" width="892" height="88" rx="8" fill="#161b22" stroke="#238636" stroke-width="1" />
+    <text x="16" y="34" class="font-mono text-green">⚖️  LLM-AS-A-JUDGE AUDIT VERDICT: PASSED (OVERALL SCORE: 0.95 / 1.00)</text>
+    <text x="16" y="56" class="font-mono text-dim">• Faithfulness &amp; Grounding: <tspan class="text-green">1.00 / 1.00</tspan> (Zero arithmetic or balance hallucination)</text>
+    <text x="16" y="74" class="font-mono text-dim">• Fiduciary Soundness:     <tspan class="text-green">0.95 / 1.00</tspan> (Emergency buffer prioritized before spend authorization)</text>
+    <text x="16" y="92" class="font-mono text-dim">• Independent Evaluator:   Ollama qwen3.5:4b (Layer 2 Observer) • Trace ID: <tspan fill="#f0f6fc">tr_96cfb4715ebb</tspan></text>
+  </g>
+</svg>
