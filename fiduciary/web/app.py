@@ -1,4 +1,8 @@
+import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -30,7 +34,35 @@ from fiduciary.storage.db import (
 from fiduciary.web.architecture import ARCHITECTURE_HTML
 from fiduciary.web.guide import GUIDE_HTML
 
-app = FastAPI(title="Personal Fiduciary Financial Harness")
+logger = logging.getLogger(__name__)
+
+_last_auto_sync: Optional[datetime] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    sync_task = asyncio.create_task(background_sync_worker())
+    yield
+    sync_task.cancel()
+    try:
+        await sync_task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(title="Personal Fiduciary Financial Harness", lifespan=lifespan)
+
+async def background_sync_worker():
+    """Periodically syncs all connected Open Banking and Wise accounts in the background every 3 minutes."""
+    global _last_auto_sync
+    # Wait 8s after startup so server initialization finishes smoothly
+    await asyncio.sleep(8)
+    while True:
+        try:
+            sync_all_accounts()
+            _last_auto_sync = datetime.now()
+        except Exception as e:
+            logger.warning(f"Background auto-sync encountered an error: {e}")
+        await asyncio.sleep(180)  # every 3 minutes
 
 class CopilotQueryRequest(BaseModel):
     query: str
@@ -1631,12 +1663,28 @@ DASHBOARD_HTML = """
         let selectedActions = new Set();
         let netWorthChart = null;
 
+        async function updateBankConnectionStatus() {
+            try {
+                const res = await fetch('/api/truelayer/status');
+                const data = await res.json();
+                const btnLabel = document.getElementById('btn-connect-bank-label');
+                if (data.connected && data.connected_banks && data.connected_banks.length > 0) {
+                    if (btnLabel) btnLabel.innerText = `🏦 ${data.connected_banks.join(' + ')}`;
+                } else if (data.connected) {
+                    if (btnLabel) btnLabel.innerText = '🏦 Linked';
+                }
+            } catch (e) {
+                // silent
+            }
+        }
+
         async function fetchAllState() {
             try {
                 const res = await fetch('/api/state');
                 currentData = await res.json();
                 renderUI();
                 await Promise.all([
+                    updateBankConnectionStatus(),
                     loadLLMStatus(),
                     loadNetWorth(),
                     loadTransactionsFeed(),
@@ -3317,6 +3365,18 @@ DASHBOARD_HTML = """
         });
 
         fetchAllState();
+
+        // Background auto-refresh state every 60 seconds
+        setInterval(async () => {
+            await fetchAllState();
+        }, 60000);
+
+        // Auto-refresh when tab becomes active / visible
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                await fetchAllState();
+            }
+        });
     </script>
 
     <!-- Mobile Bottom Navigation Dock (PWA Style) -->
@@ -3584,6 +3644,17 @@ def get_truelayer_status():
     client = TrueLayerClient()
     return client.get_connection_status()
 
+@app.get("/api/sync/status")
+def get_sync_status():
+    global _last_auto_sync
+    from fiduciary.connectors.truelayer import TrueLayerClient
+    client = TrueLayerClient()
+    return {
+        "status": "active",
+        "last_auto_sync": _last_auto_sync.isoformat() if _last_auto_sync else None,
+        "truelayer": client.get_connection_status(),
+    }
+
 @app.post("/api/advisor/live")
 def get_live_ai_briefing():
     init_db()
@@ -3729,17 +3800,19 @@ def truelayer_callback(code: str, request: Request):
     ]
 
     access_token = None
+    provider_key = None
     for r_uri in candidates:
         try:
             token_data = client.exchange_code(code, redirect_uri=r_uri)
             access_token = token_data.get("access_token")
+            provider_key = token_data.get("provider_key")
             if access_token:
                 break
         except Exception:
             continue
 
     if access_token:
-        client.sync_accounts(access_token)
+        client.sync_accounts(access_token, provider_key=provider_key)
         return RedirectResponse(url="/?synced=truelayer")
     return RedirectResponse(url="/?error=truelayer_exchange_failed")
 
@@ -3794,7 +3867,8 @@ def truelayer_manual_exchange(req: TrueLayerExchangeRequest):
             token_data = client.exchange_code(clean_code, redirect_uri=r_uri)
             access_token = token_data.get("access_token")
             if access_token:
-                synced = client.sync_accounts(access_token)
+                provider_key = token_data.get("provider_key")
+                synced = client.sync_accounts(access_token, provider_key=provider_key)
                 return {"status": "success", "synced": synced}
         except Exception as e:
             last_err = e

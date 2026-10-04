@@ -1183,6 +1183,28 @@ def get_oauth_tokens(provider: str) -> Optional[Dict[str, Any]]:
         "updated_at": row[4]
     }
 
+def get_all_oauth_tokens(prefix: str = "truelayer") -> List[Dict[str, Any]]:
+    """Retrieves all saved OAuth tokens matching a provider prefix (e.g. 'truelayer' or 'truelayer:bank')."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT provider, access_token, refresh_token, expires_at, updated_at "
+        "FROM oauth_tokens WHERE provider = ? OR provider LIKE ? ORDER BY updated_at DESC",
+        (prefix, f"{prefix}:%")
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "provider": row[0],
+            "access_token": row[1],
+            "refresh_token": row[2],
+            "expires_at": row[3],
+            "updated_at": row[4]
+        }
+        for row in rows
+    ]
+
 def delete_oauth_tokens(provider: str):
     """Deletes saved OAuth tokens (e.g. on disconnect)."""
     conn = get_connection()

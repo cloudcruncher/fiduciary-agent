@@ -2,6 +2,7 @@ from fiduciary.storage.db import (
     clear_chat_history,
     delete_account,
     delete_oauth_tokens,
+    get_all_oauth_tokens,
     get_chat_history,
     get_connection,
     get_net_worth_breakdown,
@@ -109,6 +110,16 @@ def test_oauth_tokens_storage():
     # Delete
     delete_oauth_tokens("test_provider")
     assert get_oauth_tokens("test_provider") is None
+
+    # Test multi-bank token isolation and retrieval
+    save_oauth_tokens("truelayer:revolut", "rev_access", "rev_ref", expires_in_seconds=3600)
+    save_oauth_tokens("truelayer:lloyds", "lloyds_access", "lloyds_ref", expires_in_seconds=3600)
+    all_tl = get_all_oauth_tokens("truelayer")
+    providers = [t["provider"] for t in all_tl]
+    assert "truelayer:revolut" in providers
+    assert "truelayer:lloyds" in providers
+    delete_oauth_tokens("truelayer:revolut")
+    delete_oauth_tokens("truelayer:lloyds")
 
 
 def test_seed_demo_data():
