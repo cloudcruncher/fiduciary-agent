@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit Score Explorer</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#14181f;--mute:#5a6472;--line:#dde1e7;--accent:#2457d6;
+--t1:#0f9d6a;--t2:#2457d6;--t3:#c98a00;--t4:#d23f4f}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1116;--card:#171b22;--ink:#e8ebf0;--mute:#9aa4b2;--line:#2a313c;--accent:#6c93ff;
+--t1:#2fd096;--t2:#6c93ff;--t3:#f0b429;--t4:#ff6b7a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin-bottom:14px}
+.row label{font-weight:600}
+.row output{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:600}
+.row input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.hint{grid-column:1/-1;color:var(--mute);font-size:.875rem}
+.toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.toggles label{display:flex;gap:8px;align-items:flex-start;font-size:.95rem}
+.score{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big{font-size:3rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.tier{font-weight:700}
+.bar{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:12px 0}
+.bar>i{display:block;height:100%;width:0;background:var(--c,var(--accent));transition:width .2s,background .2s}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
+.p{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:.9rem}
+.p b{display:block;font-variant-numeric:tabular-nums}
+.p small{color:var(--mute)}
+.tips li{margin-bottom:4px}
+footer{color:var(--mute);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Can you borrow? Try it.</h1>
+<p class="sub">Move the sliders. See how a lender scores your finances. All numbers stay in your browser.</p>
+
+<section class="card" aria-label="Your money">
+  <div class="row"><label for="inc">Money you receive each month (after tax)</label><output id="incO"></output>
+    <input id="inc" type="range" min="800" max="8000" step="50" value="2800"></div>
+  <div class="row"><label for="fix">Fixed costs (home, bills, food, travel)</label><output id="fixO"></output>
+    <input id="fix" type="range" min="0" max="6000" step="50" value="1500"></div>
+  <div class="row"><label for="debt">Debt payments each month</label><output id="debtO"></output>
+    <input id="debt" type="range" min="0" max="2500" step="25" value="250">
+    <span class="hint">Include loans, cards and buy-now-pay-later.</span></div>
+  <div class="row"><label for="gam">Gambling spend (% of income)</label><output id="gamO"></output>
+    <input id="gam" type="range" min="0" max="10" step="0.5" value="0"></div>
+  <div class="row"><label for="atm">Cash withdrawals (% of income)</label><output id="atmO"></output>
+    <input id="atm" type="range" min="0" max="40" step="1" value="5"></div>
+  <div class="toggles">
+    <label><input type="checkbox" id="bnpl"> I use buy-now-pay-later</label>
+    <label><input type="checkbox" id="bounce"> A direct debit failed</label>
+    <label><input type="checkbox" id="od"> I use my overdraft</label>
+    <label><input type="checkbox" id="roll" checked> I am on the voter register</label>
+  </div>
+</section>
+
+<section class="card" aria-live="polite">
+  <div class="score"><span class="big" id="score">0</span><span>/ 100</span><span class="tier" id="tier"></span></div>
+  <div class="bar"><i id="fill"></i></div>
+  <p id="desc"></p>
+  <div class="pillars" id="pillars"></div>
+</section>
+
+<section class="card">
+  <strong>Fastest ways to raise your score</strong>
+  <ul class="tips" id="tips"></ul>
+</section>
+
+<footer>This page copies the scoring rules in <code>fiduciary/analysis/credit_affordability.py</code>. It is a teaching tool. It is not a real credit score and it is not advice.</footer>
+</main>
+<script>
+// Mirrors CreditAffordabilityEngine._calculate_readiness_score
+function score(i){
+  const umiPct = Math.max(0, i.inc - i.fix - i.debt) / i.inc * 100;
+  const dtiPct = i.debt / i.inc * 100;
+  const p1 = umiPct>=35?25: umiPct>=25?20: umiPct>=15?15: umiPct>=5?8:0;
+  const p2 = dtiPct<10?25: dtiPct<20?20: dtiPct<30?14: dtiPct<40?6:0;
+  let p3 = 25; if(i.bnpl)p3-=8; if(i.bounce)p3-=12; if(i.od)p3-=6; p3=Math.max(0,p3);
+  let p4 = 25; if(!i.roll)p4-=8; if(i.gam>3)p4-=10; else if(i.gam>1)p4-=4; if(i.atm>15)p4-=5; p4=Math.max(0,p4);
+  let total = p1+p2+p3+p4; if(i.bnpl||i.bounce) total=Math.min(total,84);
+  return {umiPct,dtiPct,p1,p2,p3,p4,total};
+}
+const TIERS=[
+ [85,"Tier 1: Very strong","t1","Your finances are very strong. You owe little. You have money left each month. You pay on time. Lenders will offer you their best rates and high limits."],
+ [70,"Tier 2: Good","t2","Your finances are good. Most high-street banks will probably approve you. You can still improve a few things."],
+ [50,"Tier 3: Some risk","t3","A lender can see some risk. For example, you use buy-now-pay-later, or your debt payments are high. The lender can ask for your payslips or ask you to pay off debt first."],
+ [0,"Tier 4: High risk","t4","A lender can see serious risk. You rely on your overdraft, a payment failed, or you owe a lot. A lender will probably refuse your application."]];
+const $=id=>document.getElementById(id);
+const gbp=n=>"£"+Math.round(n).toLocaleString("en-GB");
+function read(){return{inc:+$("inc").value,fix:+$("fix").value,debt:+$("debt").value,gam:+$("gam").value,atm:+$("atm").value,
+  bnpl:$("bnpl").checked,bounce:$("bounce").checked,od:$("od").checked,roll:$("roll").checked}}
+function render(){
+  const i=read(), s=score(i);
+  $("incO").textContent=gbp(i.inc)+"/mo"; $("fixO").textContent=gbp(i.fix)+"/mo"; $("debtO").textContent=gbp(i.debt)+"/mo";
+  $("gamO").textContent=i.gam+"%"; $("atmO").textContent=i.atm+"%";
+  const t=TIERS.find(t=>s.total>=t[0]), c=`var(--${t[2]})`;
+  $("score").textContent=s.total; $("score").style.color=c;
+  $("tier").textContent=t[1]; $("tier").style.color=c; $("desc").textContent=t[3];
+  $("fill").style.width=s.total+"%"; $("fill").style.setProperty("--c",c);
+  const cards=[["Money left over",s.p1,`${s.umiPct.toFixed(0)}% of income is free`],["Debt load",s.p2,`${s.dtiPct.toFixed(0)}% of income goes to debt`],
+    ["Payment record",s.p3,"Buy-now-pay-later, overdraft, failed payments"],["Account conduct",s.p4,"Voter register, gambling, cash"]];
+  $("pillars").innerHTML=cards.map(([n,v,d])=>`<div class="p">${n}<b>${v} / 25</b><small>${d}</small></div>`).join("");
+  const tips=[];
+  if(!i.roll)tips.push("Join the voter register. Lenders use it to check who you are.");
+  if(i.bounce)tips.push("Do not let a direct debit fail. Keep enough money in the account on payment day.");
+  if(i.bnpl)tips.push("Pay off buy-now-pay-later plans before you apply. Lenders see them as debt.");
+  if(i.od)tips.push("Stop using your overdraft for 3 months before you apply.");
+  if(s.dtiPct>=20)tips.push("Reduce your debt payments. Aim for less than 20% of your income.");
+  if(s.umiPct<25)tips.push("Raise your free money. Aim for at least 25% of your income.");
+  if(i.gam>1)tips.push("Reduce gambling spend. Lenders look at it closely.");
+  if(i.atm>15)tips.push("Pay by card more often. High cash use looks unusual to a lender.");
+  if(s.total>=85)tips.push("Keep card use below 25% of your limit on statement day.");
+  if(!tips.length)tips.push("No major issues found.");
+  $("tips").innerHTML=tips.map(x=>`<li>${x}</li>`).join("");
+}
+document.querySelectorAll("input").forEach(e=>e.addEventListener("input",render));
+render();
+</script>
+</body>
+</html>
