@@ -1,6 +1,7 @@
+import os
 from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -52,7 +53,13 @@ DASHBOARD_HTML = """
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Fiduciary">
+    <meta name="theme-color" content="#020617">
     <title>Personal Fiduciary Harness • Autonomous UK Wealth Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -116,6 +123,9 @@ DASHBOARD_HTML = """
                 </button>
                 <button onclick="connectTrueLayer()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 shadow-sm text-white" title="Connect or renew UK Open Banking consent (Revolut, Chase, etc.)">
                     <span id="btn-connect-bank-label">🏦 Connect Bank</span>
+                </button>
+                <button onclick="openMobileConnectModal()" class="px-2.5 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 shadow-sm" title="Connect bank apps using your phone (FaceID)">
+                    <span>📱 Phone Link</span>
                 </button>
             </div>
         </div>
@@ -1125,6 +1135,76 @@ DASHBOARD_HTML = """
                     <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-semibold text-white rounded-lg">Save Asset</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MOBILE PHONE CONNECT MODAL -->
+    <div id="mobile-connect-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl">📱</span>
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Connect Banking on Mobile Phone</h3>
+                        <p class="text-[11px] text-slate-400">Authenticate Revolut, NatWest & Chase directly with FaceID on your phone</p>
+                    </div>
+                </div>
+                <button onclick="closeMobileConnectModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+            </div>
+
+            <!-- Steps & QR Code -->
+            <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 text-xs text-slate-300 space-y-3">
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <div id="mobile-qr-container" class="bg-white p-2 rounded-xl shadow-md w-36 h-36 flex items-center justify-center text-slate-900 font-mono text-[10px]">
+                        Loading QR...
+                    </div>
+                    <div class="space-y-2 flex-1 text-center sm:text-left">
+                        <div class="font-semibold text-emerald-400 flex items-center justify-center sm:justify-start space-x-1.5">
+                            <span>1.</span>
+                            <span>Scan with your phone camera</span>
+                        </div>
+                        <p class="text-slate-400 text-[11px]">Point iPhone Camera or Android Scanner at this QR code to open the dashboard on your phone.</p>
+                        <div class="font-mono text-[11px] bg-slate-900 p-2 rounded border border-slate-800 text-cyan-300 break-all select-all text-center sm:text-left" id="mobile-direct-url">
+                            Detecting network URL...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-2 text-xs">
+                <div class="font-semibold text-slate-200">Why connect using your phone?</div>
+                <ul class="space-y-1.5 text-slate-400 text-[11px]">
+                    <li class="flex items-start space-x-2">
+                        <span class="text-emerald-400 font-bold">✓</span>
+                        <span><b>Instant FaceID / Biometrics:</b> TrueLayer triggers your native mobile bank apps (Revolut, NatWest, Barclays) without typing web passwords.</span>
+                    </li>
+                    <li class="flex items-start space-x-2">
+                        <span class="text-emerald-400 font-bold">✓</span>
+                        <span><b>Local Laptop Sync:</b> Data is synced directly into your laptop's encrypted SQLite database. Zero confidential financial data is hosted in the cloud.</span>
+                    </li>
+                    <li class="flex items-start space-x-2">
+                        <span class="text-emerald-400 font-bold">✓</span>
+                        <span><b>Home Screen App (PWA):</b> Tap 'Share' &gt; 'Add to Home Screen' in mobile Safari to install as a standalone mobile app.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Manual Handoff / Fallback -->
+            <div class="border-t border-slate-800 pt-3 space-y-2">
+                <div class="text-[11px] font-semibold text-slate-300">Mobile Handoff / Callback Helper:</div>
+                <p class="text-[10px] text-slate-400">If your mobile bank app finishes and redirects to a callback page with a code, paste the return URL or code here:</p>
+                <div class="flex space-x-2">
+                    <input type="text" id="manual-auth-code" placeholder="Paste callback URL or code (e.g. ?code=...)" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono text-[11px]" />
+                    <button onclick="submitManualAuthCode()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap">
+                        Link Code
+                    </button>
+                </div>
+                <div id="manual-auth-status" class="text-[11px] hidden"></div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button onclick="closeMobileConnectModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium">Done</button>
+            </div>
         </div>
     </div>
 
@@ -2615,6 +2695,75 @@ DASHBOARD_HTML = """
             }
         });
 
+        async function openMobileConnectModal() {
+            const modal = document.getElementById('mobile-connect-modal');
+            const qrContainer = document.getElementById('mobile-qr-container');
+            const urlContainer = document.getElementById('mobile-direct-url');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+
+            try {
+                const res = await fetch('/api/mobile/qr');
+                const data = await res.json();
+                if (data.qr_dashboard_svg && qrContainer) {
+                    qrContainer.innerHTML = data.qr_dashboard_svg;
+                }
+                if (urlContainer) {
+                    urlContainer.innerText = data.mobile_url;
+                }
+            } catch (e) {
+                console.error('Failed to load mobile QR:', e);
+                if (qrContainer) qrContainer.innerText = 'Error loading QR';
+            }
+        }
+
+        function closeMobileConnectModal() {
+            const modal = document.getElementById('mobile-connect-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function submitManualAuthCode() {
+            const input = document.getElementById('manual-auth-code');
+            const statusDiv = document.getElementById('manual-auth-status');
+            if (!input || !statusDiv) return;
+            let val = input.value.trim();
+            if (!val) return;
+
+            // Extract code if user pasted full URL
+            if (val.includes('code=')) {
+                try {
+                    const parsedUrl = new URL(val);
+                    val = parsedUrl.searchParams.get('code') || val;
+                } catch (_) {
+                    const match = val.match(/code=([^&]+)/);
+                    if (match) val = match[1];
+                }
+            }
+
+            statusDiv.className = 'text-[11px] text-cyan-400 block';
+            statusDiv.innerText = 'Exchanging authorization code with TrueLayer...';
+
+            try {
+                const res = await fetch('/api/truelayer/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: val })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    statusDiv.className = 'text-[11px] text-emerald-400 block font-semibold';
+                    statusDiv.innerText = '✅ Bank connected successfully! Refreshing dashboard...';
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    statusDiv.className = 'text-[11px] text-rose-400 block';
+                    statusDiv.innerText = `⚠️ Exchange failed: ${data.message || 'Invalid code'}`;
+                }
+            } catch (err) {
+                statusDiv.className = 'text-[11px] text-rose-400 block';
+                statusDiv.innerText = `⚠️ Network error: ${err}`;
+            }
+        }
+
         fetchAllState();
     </script>
 </body>
@@ -2871,27 +3020,119 @@ def get_live_ai_briefing():
     briefing = ai.generate_live_briefing(state, profile)
     return {"briefing": briefing}
 
+class TrueLayerExchangeRequest(BaseModel):
+    code: str
+    redirect_uri: Optional[str] = None
+
+
+@app.get("/manifest.json")
+def get_manifest():
+    return {
+        "name": "Personal Fiduciary Agent",
+        "short_name": "Fiduciary",
+        "description": "UK Wealth Intelligence & Autonomous Open Banking Capital Optimization",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#020617",
+        "theme_color": "#020617",
+        "icons": [
+            {
+                "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>",
+                "sizes": "192x192 512x512",
+                "type": "image/svg+xml"
+            }
+        ]
+    }
+
+
+@app.get("/api/mobile/qr")
+def get_mobile_qr(request: Request):
+    import io
+
+    import qrcode
+    from qrcode.image.svg import SvgPathImage
+
+    from fiduciary.config import get_local_ip
+    from fiduciary.connectors.truelayer import TrueLayerClient
+
+    host = request.headers.get("host") or f"{get_local_ip()}:8080"
+    scheme = request.url.scheme or "http"
+    base_url = f"{scheme}://{host}"
+
+    # Generate QR for Dashboard access
+    qr_dash = qrcode.QRCode(image_factory=SvgPathImage, border=1)
+    qr_dash.add_data(base_url)
+    qr_dash.make(fit=True)
+    stream_dash = io.BytesIO()
+    qr_dash.make_image().save(stream_dash)
+    svg_dash = stream_dash.getvalue().decode("utf-8")
+
+    # Generate TrueLayer direct Mobile Auth URL
+    auth_url = ""
+    try:
+        tl = TrueLayerClient()
+        if tl.is_configured():
+            auth_url = tl.get_auth_url(redirect_uri=f"{base_url}/truelayer/callback")
+    except Exception:
+        pass
+
+    return {
+        "local_ip": get_local_ip(),
+        "mobile_url": base_url,
+        "qr_dashboard_svg": svg_dash,
+        "truelayer_auth_url": auth_url
+    }
+
+
 @app.get("/api/truelayer/auth-url")
-def get_truelayer_auth_url():
+def get_truelayer_auth_url(request: Request, redirect_uri: Optional[str] = None):
     from fiduciary.connectors.truelayer import TrueLayerClient
     client = TrueLayerClient()
     if not client.is_configured():
         return {
             "error": "TrueLayer credentials not configured. Please add TRUELAYER_CLIENT_ID and TRUELAYER_CLIENT_SECRET to .env"
         }
-    return {"auth_url": client.get_auth_url()}
+    chosen_redirect = redirect_uri or os.getenv("REDIRECT_URL")
+    if not chosen_redirect:
+        host = request.headers.get("host") or "localhost:8080"
+        scheme = request.url.scheme or "http"
+        chosen_redirect = f"{scheme}://{host}/truelayer/callback"
+    return {"auth_url": client.get_auth_url(redirect_uri=chosen_redirect)}
+
 
 @app.get("/truelayer/callback")
-def truelayer_callback(code: str):
+def truelayer_callback(code: str, request: Request):
     from fastapi.responses import RedirectResponse
 
     from fiduciary.connectors.truelayer import TrueLayerClient
+
     client = TrueLayerClient()
-    token_data = client.exchange_code(code)
+    host = request.headers.get("host") or "localhost:8080"
+    scheme = request.url.scheme or "http"
+    r_uri = os.getenv("REDIRECT_URL") or f"{scheme}://{host}/truelayer/callback"
+
+    token_data = client.exchange_code(code, redirect_uri=r_uri)
     access_token = token_data.get("access_token")
     if access_token:
         client.sync_accounts(access_token)
     return RedirectResponse(url="/?synced=truelayer")
+
+
+@app.post("/api/truelayer/exchange")
+def truelayer_manual_exchange(req: TrueLayerExchangeRequest):
+    """Allows manual code entry or mobile handoff of authorization code."""
+    from fiduciary.connectors.truelayer import TrueLayerClient
+
+    client = TrueLayerClient()
+    try:
+        token_data = client.exchange_code(req.code, redirect_uri=req.redirect_uri)
+        access_token = token_data.get("access_token")
+        if access_token:
+            synced = client.sync_accounts(access_token)
+            return {"status": "success", "synced": synced}
+        return {"status": "error", "message": "Failed to exchange authorization code"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):

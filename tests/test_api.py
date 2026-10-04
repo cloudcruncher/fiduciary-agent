@@ -130,3 +130,27 @@ def test_api_routes():
     assert res_scores.status_code == 200
     assert res_scores.json()["experian"] == 880
     assert res_scores.json()["electoral_roll"] is True
+
+    # 20. PWA Web App Manifest
+    res_manifest = client.get("/manifest.json")
+    assert res_manifest.status_code == 200
+    assert res_manifest.json()["display"] == "standalone"
+    assert res_manifest.json()["short_name"] == "Fiduciary"
+
+    # 21. Mobile QR endpoint
+    res_qr = client.get("/api/mobile/qr")
+    assert res_qr.status_code == 200
+    assert "mobile_url" in res_qr.json()
+    assert "qr_dashboard_svg" in res_qr.json()
+    assert "<svg" in res_qr.json()["qr_dashboard_svg"]
+
+    # 22. TrueLayer auth URL endpoint
+    res_auth = client.get("/api/truelayer/auth-url")
+    assert res_auth.status_code == 200
+    assert "auth_url" in res_auth.json() or "error" in res_auth.json()
+
+    # 23. TrueLayer manual code exchange endpoint
+    res_exchange = client.post("/api/truelayer/exchange", json={"code": "fake_test_code"})
+    assert res_exchange.status_code == 200
+    assert "error" in res_exchange.json() or "status" in res_exchange.json()
+

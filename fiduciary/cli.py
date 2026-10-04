@@ -16,6 +16,7 @@ from fiduciary.analysis.evaluator import FinancialEvaluator
 from fiduciary.analysis.profiler import TransactionProfiler
 from fiduciary.analysis.tax_optimizer import UKTaxOptimizer
 from fiduciary.analysis.watchdog import FinancialWatchdog
+from fiduciary.config import PORT
 from fiduciary.connectors.truelayer import TrueLayerClient
 from fiduciary.connectors.wise import WiseClient
 from fiduciary.storage.db import (
@@ -507,22 +508,49 @@ def cmd_audit(args):
         console.print("\n[dim]💡 Add GEMINI_API_KEY to .env to unlock the AI Strategy Memo.[/dim]\n")
 
 def cmd_ui(args):
-    """Launch clean local web dashboard."""
+    """Launch clean local web dashboard with phone mobile access & QR code."""
+    import io
+
+    import qrcode
     import uvicorn
 
     from fiduciary.agent.llm_client import ensure_gateway_running
-    from fiduciary.config import LLM_PROVIDER, PORT
+    from fiduciary.config import LLM_PROVIDER, PORT, get_local_ip
 
     init_db()
     if LLM_PROVIDER == "gateway":
         ensure_gateway_running()
-    console.print(Panel.fit(
+
+    host = getattr(args, "host", None) or "0.0.0.0"
+    port = getattr(args, "port", None) or PORT
+    local_ip = get_local_ip()
+    mobile_url = f"http://{local_ip}:{port}"
+    laptop_url = f"http://localhost:{port}"
+
+    # Generate terminal QR code for phone camera scanning
+    qr_str = ""
+    try:
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(mobile_url)
+        qr.make(fit=True)
+        f = io.StringIO()
+        qr.print_ascii(out=f, invert=True)
+        qr_str = f.getvalue()
+    except Exception:
+        pass
+
+    msg = (
         f"[bold green]🌐 LOCAL FIDUCIARY DASHBOARD ACTIVE[/bold green]\n\n"
-        f"Open in your browser: [bold cyan]http://localhost:{PORT}[/bold cyan]\n"
-        f"[dim]Press Ctrl+C to stop the server[/dim]",
-        border_style="green"
-    ))
-    uvicorn.run("fiduciary.web.app:app", host="127.0.0.1", port=PORT, log_level="warning")
+        f"💻 [bold white]Laptop Browser:[/bold white] [bold cyan]{laptop_url}[/bold cyan]\n"
+        f"📱 [bold white]Phone / Mobile Browser:[/bold white] [bold yellow]{mobile_url}[/bold yellow]\n\n"
+        f"[bold cyan]Scan with phone camera to connect & link banking apps:[/bold cyan]\n"
+        f"{qr_str}\n"
+        f"[dim]Tip: On phone Safari/Chrome, tap 'Share' -> 'Add to Home Screen' to install app.[/dim]\n"
+        f"[dim]Press Ctrl+C to stop the server[/dim]"
+    )
+
+    console.print(Panel.fit(msg, border_style="green"))
+    uvicorn.run("fiduciary.web.app:app", host=host, port=port, log_level="warning")
 
 def cmd_gateway(args):
     """Start or inspect the Enterprise AI Gateway (LiteLLM Proxy)."""
@@ -1207,7 +1235,9 @@ def build_parser():
     p_ai.set_defaults(func=cmd_audit)
 
     # ui (alias: w)
-    p_ui = subparsers.add_parser("ui", aliases=["w", "dashboard"], help="Launch local web dashboard")
+    p_ui = subparsers.add_parser("ui", aliases=["w", "dashboard"], help="Launch local web dashboard with mobile access")
+    p_ui.add_argument("--host", default="0.0.0.0", help="Host interface (default: 0.0.0.0 for phone access on Wi-Fi)")
+    p_ui.add_argument("--port", type=int, default=PORT, help=f"Server port (default: {PORT})")
     p_ui.set_defaults(func=cmd_ui)
 
     # gateway (alias: gw, proxy)

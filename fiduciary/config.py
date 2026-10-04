@@ -61,3 +61,18 @@ SUPPORTED_BANKS = {
     "zopa": {"name": "Zopa", "country": "GB", "displayName": "Zopa Bank"},
     "wise": {"name": "Wise", "country": "GB", "displayName": "Wise"},
 }
+
+
+def get_local_ip() -> str:
+    """Detects the primary Wi-Fi / LAN IP address of this machine for mobile device access."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
+
