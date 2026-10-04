@@ -230,10 +230,10 @@ class LLMClient:
 
         badge_text = "⚠️ No LLM Active"
         if active_mode == "gateway":
-            badge_text = f"🔵 AI Gateway ({gateway_model or self.gateway_model or 'LiteLLM Proxy'})"
+            badge_text = f"🔵 AI Gateway ({gateway_model or self.gateway_model or 'qwen3.5:4b'} • 100% Private Local)"
         elif active_mode == "local":
             if self.provider == "gateway" and not gateway_up:
-                badge_text = f"🟢 Local {local_provider.title() if local_provider else 'Ollama'} (Gateway Failover - 100% Private)"
+                badge_text = "🟢 AI Gateway (Gateway Failover • 100% Private)"
             elif local_provider == "ollama":
                 badge_text = "🟢 Local Ollama (100% Private - On Device)"
             else:

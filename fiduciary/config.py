@@ -20,11 +20,11 @@ WISE_API_TOKEN = os.getenv("WISE_API_TOKEN", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
 
 # LLM Provider Configuration:
-# "local" (strictly 100% offline via Ollama / LM Studio on Apple Silicon - Default)
-# "gateway" (enterprise AI Gateway / LiteLLM Proxy / Portkey via OpenAI-compatible endpoint)
-# "auto" (prioritizes local Ollama/LM Studio or AI Gateway if running, else Gemini)
+# "gateway" (Unified AI Gateway / LiteLLM Proxy - Default, manages on-device local models with fallback)
+# "local" (direct Ollama / LM Studio on Apple Silicon)
+# "auto" (prioritizes local Ollama/LM Studio or AI Gateway)
 # "gemini" (cloud API - dormant/opt-in only)
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "local").lower()
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gateway").lower()
 LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
 LMSTUDIO_MODEL = os.getenv("LMSTUDIO_MODEL", "local-llama")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -33,8 +33,8 @@ FIDUCIARY_JUDGE_MODEL = os.getenv("FIDUCIARY_JUDGE_MODEL", "llama3.2:3b")
 
 # Enterprise AI Gateway / LiteLLM Proxy / Portkey:
 # e.g., "http://localhost:4000/v1" or "https://gateway.ai.cloudflare.com/v1/..."
-AI_GATEWAY_URL = os.getenv("AI_GATEWAY_URL", os.getenv("OPENAI_BASE_URL", "")).rstrip("/")
-AI_GATEWAY_API_KEY = os.getenv("AI_GATEWAY_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+AI_GATEWAY_URL = os.getenv("AI_GATEWAY_URL", os.getenv("OPENAI_BASE_URL", "http://localhost:4000/v1")).rstrip("/")
+AI_GATEWAY_API_KEY = os.getenv("AI_GATEWAY_API_KEY", os.getenv("OPENAI_API_KEY", "sk-litellm-proxy-token"))
 AI_GATEWAY_MODEL = os.getenv("AI_GATEWAY_MODEL", "qwen3.5:4b")
 
 # TrueLayer Open Banking Credentials (from https://console.truelayer.com)

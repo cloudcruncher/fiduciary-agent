@@ -9,6 +9,14 @@ model_list:
       api_base: http://localhost:11434
       extra_body:
         think: false
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+router_settings:
+  model_group_alias:
+    "default": "qwen3.5:4b"
 
 general_settings:
   master_key: sk-litellm-proxy-token

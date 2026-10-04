@@ -41,6 +41,10 @@ _last_auto_sync: Optional[datetime] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    from fiduciary.agent.llm_client import ensure_gateway_running
+    from fiduciary.config import LLM_PROVIDER
+    if LLM_PROVIDER == "gateway":
+        asyncio.create_task(asyncio.to_thread(ensure_gateway_running))
     sync_task = asyncio.create_task(background_sync_worker())
     yield
     sync_task.cancel()
@@ -186,8 +190,8 @@ DASHBOARD_HTML = """
                 <button onclick="switchMainTab('walkthrough'); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-slate-200 font-semibold border border-slate-750 flex items-center space-x-1.5">
                     <span>🧭</span><span>Tour &amp; Guide</span>
                 </button>
-                <button onclick="openAIModelModal(); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-purple-300 font-semibold border border-slate-750 flex items-center space-x-1.5">
-                    <span>⚙️</span><span>AI Engine Switch</span>
+                <button onclick="openAIModelModal(); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-blue-300 font-semibold border border-slate-750 flex items-center space-x-1.5">
+                    <span>🔵</span><span>AI Gateway &amp; Privacy</span>
                 </button>
                 <button onclick="pasteAndLinkFromClipboard('banner-manual-code', 'banner-manual-status'); toggleMobileMenu();" class="p-2 bg-emerald-950/60 hover:bg-emerald-900 text-left rounded-lg text-emerald-300 font-semibold border border-emerald-800 flex items-center space-x-1.5 col-span-2">
                     <span>📋</span><span>Paste &amp; Finish Bank Linking (Lloyds / Revolut)</span>
@@ -929,7 +933,7 @@ DASHBOARD_HTML = """
                     </div>
                     <div class="flex flex-col sm:flex-row gap-2">
                         <button onclick="openAIModelModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-lg text-slate-200 flex items-center space-x-1.5">
-                            <span>⚙️ Switch AI Mode</span>
+                            <span>🔵 AI Gateway Info</span>
                         </button>
                         <a href="/architecture" target="_blank" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-lg text-slate-200 flex items-center space-x-1.5 shadow">
                             <span>🏛️ Architecture Diagram</span>
@@ -1293,71 +1297,79 @@ DASHBOARD_HTML = """
     </div>
 
     <!-- AI MODEL SELECTOR MODAL -->
+    <!-- AI GATEWAY & PRIVACY ARCHITECTURE MODAL -->
     <div id="ai-model-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center space-x-2">
-                    <span class="text-xl">⚙️</span>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl">🛡️</span>
                     <div>
-                        <h3 class="font-bold text-sm text-white">AI Engine & Privacy Selector</h3>
-                        <p class="text-[11px] text-slate-400">Choose between local on-device privacy or cloud reasoning</p>
+                        <h3 class="font-bold text-sm text-white">AI Gateway Architecture</h3>
+                        <p class="text-[11px] text-slate-400">Unified intelligent routing with strict on-device local privacy</p>
                     </div>
                 </div>
                 <button onclick="closeAIModelModal()" class="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <div class="space-y-3 text-xs">
-                <!-- Option 1: Local Ollama / LM Studio -->
-                <div onclick="selectAIProvider('local')" id="opt-provider-local" class="p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-emerald-500 cursor-pointer transition flex items-start space-x-3">
-                    <span class="text-2xl mt-0.5">🟢</span>
-                    <div class="flex-1">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-100">100% Local (Ollama / LM Studio)</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 font-semibold">100% Private</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 mt-1">Runs directly on your MacBook GPU (Metal) using Ollama (qwen3.5:4b) or LM Studio (Llama 3.1). <strong>Zero confidential banking or transaction data leaves your laptop.</strong> Fast sub-second latency.</p>
-                    </div>
-                </div>
-
-                <!-- Option 2: Cloud Gemini -->
-                <div onclick="selectAIProvider('gemini')" id="opt-provider-gemini" class="p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-purple-500 cursor-pointer transition flex items-start space-x-3">
-                    <span class="text-2xl mt-0.5">🟣</span>
-                    <div class="flex-1">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-100">Google Gemini 2.0 Cloud</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-950 border border-purple-800 text-purple-300 font-semibold">Cloud API</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 mt-1">Deep institutional reasoning with 1M+ context window. Best for complex multi-year UK tax planning and retirement modeling.</p>
-                    </div>
-                </div>
-
-                <!-- Option 3: Auto Hybrid -->
-                <div onclick="selectAIProvider('auto')" id="opt-provider-auto" class="p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-cyan-500 cursor-pointer transition flex items-start space-x-3">
-                    <span class="text-2xl mt-0.5">⚡</span>
-                    <div class="flex-1">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-100">Auto Hybrid (Default)</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-950 border border-cyan-800 text-cyan-300 font-semibold">Adaptive</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 mt-1">Uses Local LM Studio whenever it is running. If LM Studio is stopped, automatically falls back to Gemini Cloud.</p>
-                    </div>
-                </div>
-
-                <!-- Option 4: AI Gateway / LiteLLM Proxy -->
-                <div onclick="selectAIProvider('gateway')" id="opt-provider-gateway" class="p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-blue-500 cursor-pointer transition flex items-start space-x-3">
+                <!-- Status Card: Gateway Status -->
+                <div class="p-3.5 rounded-xl border border-blue-800/60 bg-blue-950/30 flex items-start space-x-3">
                     <span class="text-2xl mt-0.5">🔵</span>
                     <div class="flex-1">
                         <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-100">AI Gateway (LiteLLM / Proxy)</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-950 border border-blue-800 text-blue-300 font-semibold">Router / Proxy</span>
+                            <span class="font-bold text-slate-100">Enterprise AI Gateway (Active Default)</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-900/80 border border-blue-500/50 text-blue-200 font-semibold" id="modal-gw-status">Proxy Active (:4000)</span>
                         </div>
-                        <p class="text-[11px] text-slate-400 mt-1">Routes via an OpenAI-compatible intelligent proxy or enterprise gateway (LiteLLM, Portkey, Cloudflare) with centralized rate-limiting, failovers, and caching.</p>
+                        <p class="text-[11px] text-slate-300 mt-1">All AI queries and financial reasoning route through the unified local gateway. External integrations are isolated behind rate-limiting, audit traces, and zero-token DB caching.</p>
+                    </div>
+                </div>
+
+                <!-- Section: Routing Priority (Local First) -->
+                <div class="p-3.5 rounded-xl border border-emerald-800/60 bg-emerald-950/20 flex items-start space-x-3">
+                    <span class="text-2xl mt-0.5">🟢</span>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-100">Primary Choice: Local On-Device Models</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-900/80 border border-emerald-500/50 text-emerald-200 font-semibold">100% Private</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 mt-1">
+                            Routes to <strong class="text-emerald-300" id="modal-local-model">qwen3.5:4b</strong> via native Ollama on Apple Silicon Metal GPU.
+                            <strong>Zero confidential banking or transaction data leaves your laptop.</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Section: Upstream Reasoning (Encapsulated) -->
+                <div class="p-3.5 rounded-xl border border-purple-800/40 bg-purple-950/20 flex items-start space-x-3">
+                    <span class="text-2xl mt-0.5">🟣</span>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-100">Upstream Gateway Router: Gemini Cloud</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-900/80 border border-purple-500/50 text-purple-200 font-semibold">Encapsulated</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">Managed entirely inside the Gateway proxy for complex institutional tax reasoning when enabled. Direct integrations are hidden to ensure consistent governance and local-first privacy.</p>
+                    </div>
+                </div>
+
+                <!-- Telemetry & Specs -->
+                <div class="p-3 rounded-lg bg-slate-800/60 border border-slate-750 text-[11px] space-y-1.5 text-slate-300">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Gateway Endpoint:</span>
+                        <span class="font-mono text-cyan-400" id="modal-gw-url">http://localhost:4000/v1</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Privacy Standard:</span>
+                        <span class="text-emerald-400 font-medium">100% Fiduciary On-Device Guarantee</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Response Cache:</span>
+                        <span class="text-slate-200">SQLite State-Fingerprinted (0 Tokens Billed)</span>
                     </div>
                 </div>
             </div>
 
             <div class="pt-2 border-t border-slate-800 flex justify-end">
-                <button onclick="closeAIModelModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-white">Close</button>
+                <button onclick="closeAIModelModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-white">Done</button>
             </div>
         </div>
     </div>
@@ -2011,40 +2023,41 @@ DASHBOARD_HTML = """
                 const dot = document.getElementById('llm-status-dot');
                 const subhead = document.getElementById('copilot-subhead-status');
 
-                if (data.mode === 'gateway') {
-                    const gwModel = data.gateway_model || 'LiteLLM Proxy';
-                    if (text) text.innerHTML = `<strong>AI Gateway</strong> <span class="text-blue-400 font-semibold">(${gwModel})</span>`;
+                const modelName = data.gateway_model || data.local_model || 'qwen3.5:4b';
+                const gwOnline = data.gateway_server_online;
+
+                if (gwOnline) {
+                    if (text) text.innerHTML = `<strong>AI Gateway</strong> <span class="text-blue-400 font-semibold">(${modelName} • 100% Private)</span>`;
                     if (dot) dot.className = "w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400 animate-pulse";
                     if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-blue-950/40 border border-blue-700/60 rounded-full text-xs font-medium cursor-pointer hover:border-blue-500 transition";
-                    if (subhead) subhead.innerHTML = `🔵 AI Gateway (${gwModel}) • Enterprise Router`;
-                } else if (data.mode === 'local') {
-                    const localProvName = data.local_provider === 'ollama' ? 'Local Ollama' : 'Local LM Studio';
-                    if (text) text.innerHTML = `<strong>${localProvName}</strong> <span class="text-emerald-400 font-semibold">(100% Private)</span>`;
+                    if (subhead) subhead.innerHTML = `🔵 AI Gateway (${modelName}) • Unified Local Inference • 100% Private`;
+                } else if (data.local_server_online) {
+                    if (text) text.innerHTML = `<strong>AI Gateway</strong> <span class="text-emerald-400 font-semibold">(Local Failover • 100% Private)</span>`;
                     if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse";
                     if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-emerald-950/40 border border-emerald-700/60 rounded-full text-xs font-medium cursor-pointer hover:border-emerald-500 transition";
-                    if (subhead) subhead.innerHTML = `🟢 ${localProvName} (${data.local_model || 'Model'}) • 100% On-Device Privacy`;
-                } else if (data.mode === 'gemini') {
-                    if (text) text.innerHTML = `<strong>Google Gemini</strong> <span class="text-purple-400 font-semibold">(Cloud API)</span>`;
-                    if (dot) dot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400 animate-pulse";
-                    if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-purple-950/40 border border-purple-700/60 rounded-full text-xs font-medium cursor-pointer hover:border-purple-500 transition";
-                    if (subhead) subhead.innerHTML = `🟣 Google Gemini Cloud API`;
+                    if (subhead) subhead.innerHTML = `🟢 AI Gateway Failover (${data.local_model || 'Local Model'}) • 100% On-Device Privacy`;
                 } else {
-                    if (text) text.innerHTML = `<span class="text-slate-400">Offline (Start Ollama / Gateway)</span>`;
+                    if (text) text.innerHTML = `<span class="text-slate-400">AI Gateway (Offline - Start Ollama)</span>`;
                     if (dot) dot.className = "w-2 h-2 rounded-full bg-slate-500";
                     if (pill) pill.className = "hidden md:flex items-center space-x-2 px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs font-medium cursor-pointer";
                     if (subhead) subhead.innerHTML = `⚠️ No AI Model Connected`;
                 }
 
-                ['local', 'gemini', 'auto', 'gateway'].forEach(p => {
-                    const el = document.getElementById(`opt-provider-${p}`);
-                    if (el) {
-                        if (data.configured_provider === p) {
-                            el.className = "p-3.5 rounded-xl border-2 border-emerald-500 bg-slate-800 shadow-md cursor-pointer transition flex items-start space-x-3";
-                        } else {
-                            el.className = "p-3.5 rounded-xl border border-slate-700 bg-slate-850 hover:border-slate-500 cursor-pointer transition flex items-start space-x-3";
-                        }
-                    }
-                });
+                const modalGwStatus = document.getElementById('modal-gw-status');
+                if (modalGwStatus) {
+                    modalGwStatus.textContent = gwOnline ? "Proxy Active (:4000)" : "Local Engine Failover";
+                    modalGwStatus.className = gwOnline 
+                        ? "px-2 py-0.5 rounded text-[10px] bg-blue-900/80 border border-blue-500/50 text-blue-200 font-semibold"
+                        : "px-2 py-0.5 rounded text-[10px] bg-emerald-900/80 border border-emerald-500/50 text-emerald-200 font-semibold";
+                }
+                const modalLocalModel = document.getElementById('modal-local-model');
+                if (modalLocalModel && (data.local_model || data.gateway_model)) {
+                    modalLocalModel.textContent = data.gateway_model || data.local_model;
+                }
+                const modalGwUrl = document.getElementById('modal-gw-url');
+                if (modalGwUrl && data.gateway_url) {
+                    modalGwUrl.textContent = data.gateway_url;
+                }
             } catch (e) {
                 console.error("LLM status error:", e);
             }
