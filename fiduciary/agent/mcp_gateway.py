@@ -6,7 +6,7 @@ Compatible with Model Context Protocol (MCP) standards.
 """
 
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fiduciary.agent.web_tools import (
     fetch_boe_base_rate,

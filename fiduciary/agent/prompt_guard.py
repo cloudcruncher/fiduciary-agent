@@ -4,10 +4,9 @@ Detects and neutralizes jailbreaks, instruction overrides, delimiter attacks,
 and unauthorized data exfiltration attempts before queries reach the LLM.
 """
 
-import html
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 
 @dataclass

@@ -1,8 +1,7 @@
-import pytest
 from fastapi.testclient import TestClient
+
 from fiduciary.agent.mcp_gateway import MCPGateway
 from fiduciary.web.app import app
-
 
 client = TestClient(app)
 

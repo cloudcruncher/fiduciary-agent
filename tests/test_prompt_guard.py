@@ -1,6 +1,5 @@
-import pytest
-from fiduciary.agent.prompt_guard import PromptGuard, PromptGuardResult
 from fiduciary.agent.copilot import AICopilotEngine
+from fiduciary.agent.prompt_guard import PromptGuard
 
 
 def test_prompt_guard_safe_queries():
