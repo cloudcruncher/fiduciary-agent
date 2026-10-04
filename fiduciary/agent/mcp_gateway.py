@@ -93,6 +93,18 @@ class MCPGateway:
                 "type": "object",
                 "properties": {}
             }
+        },
+        "vector_search_documents": {
+            "name": "vector_search_documents",
+            "description": "Performs local semantic vector search across statutory HMRC tax rules, FCA MCOB underwriting standards, and financial documents.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Semantic query or topic to retrieve (e.g. 'ISA allowances', '60% tax trap', 'mortgage stress')"},
+                    "top_k": {"type": "integer", "description": "Number of relevant chunks to retrieve", "default": 2}
+                },
+                "required": ["query"]
+            }
         }
     }
 
@@ -140,6 +152,13 @@ class MCPGateway:
             elif tool_name == "financial_watchdog_audit":
                 wd = FinancialWatchdog()
                 result = wd.run_full_audit()
+
+            elif tool_name == "vector_search_documents":
+                from fiduciary.agent.vector_rag import get_vector_rag
+                q = args.get("query", "")
+                k = int(args.get("top_k", 2))
+                rag = get_vector_rag()
+                result = rag.search(query=q, top_k=k)
 
             else:
                 status = "NOT_FOUND"

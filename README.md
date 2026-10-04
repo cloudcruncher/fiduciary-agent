@@ -86,6 +86,8 @@ An executable shortcut `./f` is available in the project root:
 | **`./f spending [query]`** | **`./f spend`** | Spending Insight Engine: Category breakdown (e.g. `pubs`, `groceries`), velocity & micro-expenses |
 | **`./f profile`** | **`./f p`** | Intelligent Customer Profile: Financial Health Score (0–100), Financial DNA Archetype & Action Cards |
 | **`./f copilot [Q]`** | **`./f chat`** | Interactive conversational AI Fiduciary Copilot (grounded in live transactions & tax rules) |
+| **`./f react [Q]`** | — | Autonomous multi-step ReAct agent with step trace observability (Thought → Action → Observation) |
+| **`./f rag [Q]`** | — | Local semantic Vector RAG search across statutory HMRC tax rules and FCA MCOB underwriting standards |
 | **`./f credit`** | **`./f cr`** | Underwriter-view credit audit: Borrowing Readiness Score, UMI/DTI, BNPL & returned-DD flags, mortgage capacity (4.5x, 7.5% stress), runway stress tests. Record bureau scores with `--experian 865 --equifax 740` |
 | **`./f watchdog`** | **`./f guard`** | Financial Watchdog: Detect stealth subscription price hikes, duplicate charges, upcoming bills |
 | **`./f tax`** | **`./f t`** | UK Tax & Wealth Optimization: 60% allowance trap audit, SIPP relief, Personal Savings Allowance drag |
@@ -283,6 +285,7 @@ The harness features a standards-compliant **Model Context Protocol (MCP) Gatewa
 | **`credit_affordability_audit`** | Underwriter Engine | < 25ms | FCA MCOB 11 | Underwriter UMI, DTI, BNPL risk scan, and mortgage stress test |
 | **`tax_wealth_audit`** | Tax Engine | < 1ms | HMRC Tax Rules | UK tax band, marginal rates, 60% allowance trap, and SIPP relief |
 | **`financial_watchdog_audit`** | Cashflow Engine | < 15ms | Watchdog Profiler | Active recurring bills, price hikes, duplicate charges, 14d runway |
+| **`vector_search_documents`** | Semantic Vector RAG | < 5ms | Local Vector Index | Semantic retrieval over statutory HMRC tax rules, FCA MCOB underwriting standards |
 
 ### HTTP MCP Endpoints:
 - **`GET /api/mcp/tools`**: Returns standardized JSON schemas for all tools compatible with Claude, Cursor, and MCP clients.
@@ -292,6 +295,45 @@ The harness features a standards-compliant **Model Context Protocol (MCP) Gatewa
     -H "Content-Type: application/json" \
     -d '{"tool_name": "fetch_boe_base_rate", "arguments": {"timeout": 2.0}}'
   ```
+
+---
+
+## 🤖 Autonomous Multi-Step ReAct Agent Engine
+
+For compound, cross-domain financial inquiries (e.g. *"Audit my grocery spend, compare with inflation, and recommend top cash isas"*), the harness features an autonomous **ReAct (Reasoning + Acting) Agent Engine** ([`fiduciary/agent/react_agent.py`](fiduciary/agent/react_agent.py)):
+
+1. **Autonomous Trajectory**: Iterates through `Thought -> Action -> Action Input -> Observation -> Thought ... -> Final Answer` with a safety ceiling (max 4 turns).
+2. **Dynamic Tool Orchestration**: Dynamically invokes tools from the `MCPGateway` catalog (`query_spending_and_transactions`, `fetch_top_savings_and_isas`, `fetch_boe_base_rate`, `vector_search_documents`, etc.).
+3. **Step-by-Step Observability**: Measures latency per step, logs observations, and records the full trajectory to `llm_traces` in SQLite.
+4. **CLI & Web Execution**:
+   ```bash
+   ./f react "What is the Bank of England base rate and how much did I spend on pubs?"
+   ./f copilot --react "Audit my grocery spend and find the best cash isa"
+   ```
+
+---
+
+## 🛡️ Reversible Cryptographic PII Anonymization Layer
+
+To ensure institutional data privacy and zero cloud credential leakage, the **PII Anonymizer** ([`fiduciary/agent/pii_anonymizer.py`](fiduciary/agent/pii_anonymizer.py)) intercepts all prompts before they leave the application:
+
+1. **Reversible Pseudonymization**: Detects UK Sort Codes (`20-45-78`), 8-digit Bank Account Numbers, Card Numbers, National Insurance Numbers (NINO), phone numbers, and emails, replacing them with salt-indexed tokens (`[SORT_CODE_1]`, `[ACCOUNT_NUM_1]`, `[EMAIL_1]`).
+2. **Lossless Roundtrip Deanonymization**: Restores real client credentials into the model's final response after generation, guaranteeing zero raw PII reaches external models or cloud gateways.
+3. **One-Way Presentation Masking**: Irreversibly masks identifiers for logs and UI display (`••-••-78`, `••••5678`).
+
+---
+
+## 🔍 Local Semantic Vector RAG Engine
+
+The harness includes an embedded, zero-daemon **Local Semantic Vector RAG Engine** ([`fiduciary/agent/vector_rag.py`](fiduciary/agent/vector_rag.py)):
+
+1. **Embedded Vector Index**: Runs 100% locally with TF-IDF weighted cosine similarity vectors, requiring zero cloud vector APIs, Docker containers, or background vector servers.
+2. **Pre-Seeded Statutory Corpus**: Indexes official HMRC ISA rules (£20k/yr, £4k LISA bonus), Pension contribution limits (£60k/yr gross), Capital Gains Tax allowances (£3k), 60% marginal tax trap mechanics, and FCA MCOB 11 underwriting guidelines.
+3. **Custom Document Ingestion**: Ingests custom user documents (insurance policies, mortgage offer letters, statement notes) for sub-millisecond semantic retrieval:
+   ```bash
+   ./f rag "60 percent tax trap personal allowance"
+   ./f rag "mortgage affordability underwriter stress test"
+   ```
 
 ---
 
@@ -325,10 +367,10 @@ The harness solves this through **Deterministic Pre-Calculation + Anti-Refusal F
 
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (**100 tests**) and automated CI pipeline:
+The repository includes a comprehensive test suite (**110 tests**) and automated CI pipeline:
 
 ```bash
-# Run full unit and integration test suite (100 tests across storage, agents, MCP, and security)
+# Run full unit and integration test suite (110 tests across storage, agents, MCP, ReAct, RAG, and security)
 uv run pytest --verbose
 
 # Run ultra-fast Ruff linter

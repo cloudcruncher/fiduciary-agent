@@ -607,12 +607,34 @@ def cmd_copilot(args):
     if LLM_PROVIDER == "gateway":
         ensure_gateway_running()
 
-    copilot = AICopilotEngine()
+    use_react = getattr(args, "react", False)
     query = getattr(args, "query", None)
+
+    if use_react and query:
+        from fiduciary.agent.react_agent import ReActFiduciaryAgent
+        agent = ReActFiduciaryAgent()
+        console.print(f"[bold cyan]🔍 Autonomous ReAct Agent:[/bold cyan] {query}\n")
+        with console.status("[bold green]Executing ReAct multi-step reasoning trajectory...[/bold green]"):
+            result = agent.run(query)
+
+        for s in result["steps"]:
+            act = s.get("action", "")
+            dur = s.get("duration_ms", 0)
+            console.print(f"[bold yellow]Step {s['step']}:[/bold yellow] [bold]{act}[/bold] ({dur}ms)")
+            if s.get("thought"):
+                console.print(f"  [dim cyan]Thought:[/dim cyan] {s['thought']}")
+            if s.get("observation"):
+                obs_prev = s['observation'][:120] + ("..." if len(s['observation']) > 120 else "")
+                console.print(f"  [dim green]Observation:[/dim green] {obs_prev}")
+
+        console.print(Panel(Markdown(result["answer"]), title=f"🤖 Fiduciary ReAct Verdict ({result['total_duration_ms']:.0f}ms)", border_style="green"))
+        return
+
+    copilot = AICopilotEngine()
     if query:
         console.print(f"[bold cyan]User:[/bold cyan] {query}")
         console.print("[dim]Consulting fiduciary database...[/dim]")
-        answer = copilot.process_query(query)
+        answer = copilot.process_query(query, use_react=use_react)
         console.print(Panel(Markdown(answer), title="🤖 Fiduciary Copilot", border_style="cyan"))
     else:
         console.print(Panel.fit(
@@ -629,10 +651,36 @@ def cmd_copilot(args):
                 if user_input.lower() in ["exit", "quit", "q"]:
                     break
                 console.print("[dim]Analyzing real accounts...[/dim]")
-                ans = copilot.process_query(user_input)
+                ans = copilot.process_query(user_input, use_react=use_react)
                 console.print(Panel(Markdown(ans), title="🤖 Fiduciary Copilot", border_style="cyan"))
             except (KeyboardInterrupt, EOFError):
                 break
+
+
+def cmd_rag(args):
+    """Local semantic vector RAG search over statutory rules and documents."""
+    init_db()
+    from fiduciary.agent.vector_rag import get_vector_rag
+    query = getattr(args, "query", None)
+    if not query:
+        console.print("[bold red]Please provide a query for vector search.[/bold red] Example: ./f rag '60 percent tax trap'")
+        return
+
+    rag = get_vector_rag()
+    limit = getattr(args, "limit", 3) or 3
+    results = rag.search(query=query, top_k=int(limit))
+    console.print(f"[bold cyan]🔍 Local Semantic Vector RAG Search:[/bold cyan] '{query}'\n")
+    if not results:
+        console.print("[yellow]No relevant documents matched.[/yellow]")
+        return
+
+    for idx, r in enumerate(results, 1):
+        console.print(Panel(
+            f"[bold]{r['title']}[/bold] [dim]({r['category']})[/dim]  |  Relevance Score: [bold green]{r['score']:.4f}[/bold green]\n\n"
+            f"{r['content']}",
+            title=f"Match #{idx}: {r['id']}",
+            border_style="cyan"
+        ))
 
 def cmd_watchdog(args):
     """Run financial watchdog for bills, price hikes, and duplicate charges."""
@@ -1152,7 +1200,19 @@ def build_parser():
     # copilot (alias: chat, c)
     p_copilot = subparsers.add_parser("copilot", aliases=["chat", "co"], help="Interactive or one-shot AI Fiduciary Copilot")
     p_copilot.add_argument("query", nargs="?", help="Optional prompt to answer directly")
+    p_copilot.add_argument("--react", action="store_true", help="Execute in autonomous multi-step ReAct agent mode with step-by-step trace observability")
     p_copilot.set_defaults(func=cmd_copilot)
+
+    # react (autonomous multi-step agent)
+    p_react = subparsers.add_parser("react", help="Autonomous multi-step ReAct agent with step-by-step trace observability")
+    p_react.add_argument("query", help="Compound prompt to execute with autonomous ReAct trajectory")
+    p_react.set_defaults(func=lambda args: (setattr(args, "react", True), cmd_copilot(args)))
+
+    # rag (local semantic vector RAG search)
+    p_rag = subparsers.add_parser("rag", help="Local semantic Vector RAG search over statutory rules and underwriter guidelines")
+    p_rag.add_argument("query", help="Semantic query to search against vector corpus")
+    p_rag.add_argument("--limit", "-n", type=int, default=3, help="Max results to return")
+    p_rag.set_defaults(func=cmd_rag)
 
     # watchdog (alias: guard, wd)
     p_watchdog = subparsers.add_parser("watchdog", aliases=["guard", "wd"], help="Financial Watchdog: Price hikes, duplicate charges, upcoming bills")

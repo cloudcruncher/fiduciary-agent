@@ -71,6 +71,7 @@ async def background_sync_worker():
 class CopilotQueryRequest(BaseModel):
     query: str
     reset_session: Optional[bool] = False
+    use_react: Optional[bool] = False
 
 class AssetAddRequest(BaseModel):
     name: str
@@ -3569,13 +3570,35 @@ def get_cancel_template(req: CancelLetterRequest):
 def copilot_chat(req: CopilotQueryRequest):
     init_db()
     copilot = AICopilotEngine()
-    answer = copilot.process_query(req.query, reset_session=bool(req.reset_session))
+    answer = copilot.process_query(
+        req.query,
+        reset_session=bool(req.reset_session),
+        use_react=bool(req.use_react)
+    )
     status = copilot.get_provider_status()
     return {
         "answer": answer,
         "mode": status["mode"],
         "badge": status["privacy_badge"]
     }
+
+@app.post("/api/copilot/react")
+def copilot_react_endpoint(req: CopilotQueryRequest):
+    init_db()
+    from fiduciary.agent.react_agent import ReActFiduciaryAgent
+    agent = ReActFiduciaryAgent()
+    result = agent.run(req.query)
+    status = AICopilotEngine().get_provider_status()
+    result["mode"] = status["mode"]
+    result["badge"] = status["privacy_badge"]
+    return result
+
+@app.get("/api/rag/search")
+def rag_search_endpoint(q: str, limit: int = 3):
+    from fiduciary.agent.vector_rag import get_vector_rag
+    rag = get_vector_rag()
+    results = rag.search(query=q, top_k=limit)
+    return {"query": q, "results": results}
 
 @app.get("/api/copilot/history")
 def copilot_history(limit: int = 50):

@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 from fiduciary.agent.llm_client import LLMClient
 from fiduciary.agent.mcp_gateway import MCPGateway
+from fiduciary.agent.pii_anonymizer import PIIAnonymizer
 from fiduciary.agent.prompt_guard import PromptGuard
 from fiduciary.agent.scout import MarketScout
 from fiduciary.analysis.customer_profile import CustomerProfileEngine
@@ -57,7 +58,7 @@ class AICopilotEngine:
             "tax_audit": tax_audit
         }
 
-    def process_query(self, user_query: str, reset_session: bool = False) -> str:
+    def process_query(self, user_query: str, reset_session: bool = False, use_react: bool = False) -> str:
         """Processes a user question, saves to conversation history, and returns response."""
         if reset_session:
             clear_chat_history()
@@ -444,8 +445,19 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
         conversation_context = ("\n\nRECENT CONVERSATION:\n" + "\n".join(formatted_history)) if formatted_history else ""
         prompt_with_history = f"{conversation_context}\n\nUSER QUERY: {user_query}\nASSISTANT:"
 
+        if use_react:
+            from fiduciary.agent.react_agent import ReActFiduciaryAgent
+            react_agent = ReActFiduciaryAgent(llm=self.llm, enable_pii_anonymization=True)
+            res = react_agent.run(clean_query, context=wrapped_context)
+            final_ans = res["answer"]
+            save_chat_message("assistant", final_ans)
+            return final_ans
+
+        # Reversible PII anonymization before passing prompt to LLM
+        anonymized_prompt, deanonymize_map = PIIAnonymizer.anonymize(prompt_with_history)
+
         response_text = self.llm.generate(
-            prompt=prompt_with_history,
+            prompt=anonymized_prompt,
             system_prompt=system_prompt,
             temperature=0.2,
             max_tokens=1000,
@@ -453,5 +465,9 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
             tools_used=tools_executed
         )
 
+        if deanonymize_map:
+            response_text = PIIAnonymizer.deanonymize(response_text, deanonymize_map)
+
         save_chat_message("assistant", response_text)
         return response_text
+
