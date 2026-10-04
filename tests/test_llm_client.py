@@ -188,3 +188,36 @@ def test_llm_response_caching_zero_token_savings():
         assert mock_post.call_count == 2
 
 
+def test_llm_gateway_offline_falls_back_to_local_ollama():
+    def mock_get(url, timeout=0.8, headers=None):
+        m = MagicMock()
+        if "4000" in url:
+            raise Exception("Gateway connection refused")
+        elif "11434" in url:
+            m.status_code = 200
+            m.json.return_value = {"models": [{"name": "qwen3.5:4b"}]}
+            return m
+        raise Exception("Offline")
+
+    with patch("requests.get", side_effect=mock_get):
+        client = LLMClient(
+            provider="gateway",
+            gateway_url="http://localhost:4000/v1"
+        )
+        status = client.get_status()
+        assert status["mode"] == "local"
+        assert status["gateway_server_online"] is False
+        assert status["local_server_online"] is True
+        assert "Gateway Failover" in status["privacy_badge"]
+
+
+def test_llm_gateway_failure_falls_back_to_local_generation():
+    with patch.object(LLMClient, "get_status", return_value={"mode": "gateway", "gateway_model": "qwen3.5:4b"}):
+        with patch.object(LLMClient, "_generate_gateway", return_value=None):
+            with patch.object(LLMClient, "is_local_server_running", return_value=(True, "ollama", "qwen3.5:4b")):
+                with patch.object(LLMClient, "_generate_local", return_value="Local fallback advice delivered."):
+                    client = LLMClient(provider="gateway")
+                    ans = client.generate("What is my cash runway?", bypass_cache=True)
+                    assert ans == "Local fallback advice delivered."
+
+

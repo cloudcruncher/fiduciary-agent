@@ -16,5 +16,5 @@ general_settings:
 litellm_settings:
   drop_params: true
   telemetry: false
-  cache: true
-  cache_type: "local"
+  cache_params:
+    type: "in-memory"

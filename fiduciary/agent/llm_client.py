@@ -85,8 +85,8 @@ def ensure_gateway_running(gateway_url: Optional[str] = None) -> bool:
             stderr=subprocess.DEVNULL,
             start_new_session=True
         )
-        for _ in range(12):
-            time.sleep(0.25)
+        for _ in range(20):
+            time.sleep(0.35)
             if _is_alive():
                 return True
     except Exception:
@@ -206,7 +206,15 @@ class LLMClient:
         active_mode = "none"
 
         if self.provider == "gateway":
-            active_mode = "gateway" if (gateway_up or self.gateway_url) else "none"
+            if gateway_up:
+                active_mode = "gateway"
+            elif local_up:
+                # Gateway configured but offline: automatically fall back to local Ollama / LM Studio
+                active_mode = "local"
+            elif self.gemini_key:
+                active_mode = "gemini"
+            else:
+                active_mode = "gateway" if self.gateway_url else "none"
         elif self.provider == "local":
             active_mode = "local" if local_up else "none"
         elif self.provider == "gemini":
@@ -224,7 +232,9 @@ class LLMClient:
         if active_mode == "gateway":
             badge_text = f"🔵 AI Gateway ({gateway_model or self.gateway_model or 'LiteLLM Proxy'})"
         elif active_mode == "local":
-            if local_provider == "ollama":
+            if self.provider == "gateway" and not gateway_up:
+                badge_text = f"🟢 Local {local_provider.title() if local_provider else 'Ollama'} (Gateway Failover - 100% Private)"
+            elif local_provider == "ollama":
                 badge_text = "🟢 Local Ollama (100% Private - On Device)"
             else:
                 badge_text = "🟢 Local LM Studio (100% Private - On Device)"
@@ -318,7 +328,7 @@ class LLMClient:
             )
             if local_ans:
                 response_text = local_ans
-            elif self.provider == "local":
+            elif self.provider in ("local", "gateway"):
                 # Strict 100% local privacy: NEVER fall back to Gemini cloud!
                 prov_name = (status.get("local_provider") or "local").upper()
                 response_text = (
@@ -350,10 +360,28 @@ class LLMClient:
             if gateway_ans:
                 response_text = gateway_ans
             else:
-                response_text = (
-                    f"⚠️ **AI Gateway Error**\n\n"
-                    f"The configured AI Gateway at `{self.gateway_url}` failed to respond on model `{used_model}`."
-                )
+                # Gateway failed or returned None: automatically fall back to local Ollama / LM Studio
+                local_up, local_prov, local_m = self.is_local_server_running()
+                if local_up:
+                    local_ans = self._generate_local(
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        provider=local_prov or "ollama",
+                        model_name=local_m,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        timeout=timeout
+                    )
+                    if local_ans:
+                        response_text = local_ans
+                        used_provider = f"gateway-fallback->{local_prov}"
+                        used_model = local_m or used_model
+                if not response_text:
+                    response_text = (
+                        f"⚠️ **AI Gateway Error**\n\n"
+                        f"The configured AI Gateway at `{self.gateway_url}` failed to respond on model `{used_model}`.\n\n"
+                        f"💡 *Tip*: Run `./f gateway` to start the LiteLLM proxy, or start Ollama (`ollama serve`) for native local inference."
+                    )
         elif mode == "gemini":
             used_provider = "gemini"
             used_model = "gemini-2.5-flash"
