@@ -9,6 +9,12 @@ model_list:
       api_base: http://localhost:11434
       extra_body:
         think: false
+  - model_name: llama3.2:3b
+    litellm_params:
+      model: ollama_chat/llama3.2:3b
+      api_base: http://localhost:11434
+      extra_body:
+        think: false
   - model_name: gemini-2.5-flash
     litellm_params:
       model: gemini/gemini-2.5-flash
@@ -17,6 +23,9 @@ model_list:
 router_settings:
   model_group_alias:
     "default": "qwen3.5:4b"
+    "copilot": "qwen3.5:4b"
+    "evaluator": "llama3.2:3b"
+    "judge": "llama3.2:3b"
 
 general_settings:
   master_key: sk-litellm-proxy-token

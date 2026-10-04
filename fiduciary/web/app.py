@@ -3578,6 +3578,23 @@ def copilot_clear():
     clear_chat_history()
     return {"status": "cleared"}
 
+class MCPExecuteRequest(BaseModel):
+    tool_name: str
+    arguments: Optional[dict] = None
+
+@app.get("/api/mcp/tools")
+def get_mcp_tools():
+    """Lists standardized Model Context Protocol (MCP) tools and schemas."""
+    from fiduciary.agent.mcp_gateway import MCPGateway
+    return {"tools": MCPGateway.list_tools()}
+
+@app.post("/api/mcp/execute")
+def execute_mcp_tool(req: MCPExecuteRequest):
+    """Executes an MCP tool with high-precision telemetry and returns standard output."""
+    from fiduciary.agent.mcp_gateway import MCPGateway
+    res = MCPGateway.call_tool(tool_name=req.tool_name, arguments=req.arguments)
+    return res
+
 @app.get("/api/transactions")
 def get_transactions(
     days: Optional[int] = None,

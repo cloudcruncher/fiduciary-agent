@@ -2,8 +2,9 @@ import time
 from typing import Any, Dict, Optional
 
 from fiduciary.agent.llm_client import LLMClient
+from fiduciary.agent.mcp_gateway import MCPGateway
+from fiduciary.agent.prompt_guard import PromptGuard
 from fiduciary.agent.scout import MarketScout
-from fiduciary.agent.web_tools import get_live_web_context_with_tools
 from fiduciary.analysis.customer_profile import CustomerProfileEngine
 from fiduciary.analysis.profiler import TransactionProfiler
 from fiduciary.analysis.spending import SpendingInsightEngine
@@ -59,6 +60,15 @@ class AICopilotEngine:
         """Processes a user question, saves to conversation history, and returns response."""
         save_chat_message("user", user_query)
 
+        # 0. Prompt Guard Inspection & Injection Defense
+        guard_result = PromptGuard.inspect(user_query)
+        if not guard_result.is_safe:
+            mock_resp = guard_result.guard_response or "🛡️ Unauthorized query blocked by Prompt Guard."
+            save_chat_message("assistant", mock_resp)
+            return mock_resp
+
+        clean_query = guard_result.sanitized_query
+
         if not self.is_configured():
             mock_resp = (
                 "⚠️ **No AI Engine Active**\n\n"
@@ -76,9 +86,9 @@ class AICopilotEngine:
         wd = context["watchdog"]
         tax = context["tax_audit"]
 
-        # 1. Zero-latency live web tool lookup with tool observability
-        web_context, web_tools_called = get_live_web_context_with_tools(user_query)
-        tools_executed = list(web_tools_called)
+        # 1. MCP Gateway grounding & live web lookup with tool observability
+        mcp_context_blocks, mcp_tools_called = MCPGateway.resolve_and_ground(clean_query, p, wd, tax)
+        tools_executed = list(mcp_tools_called)
 
         # 2. Retrieve recent conversation history (last 4 turns for low prompt latency)
         history = get_chat_history(limit=5)
@@ -87,9 +97,15 @@ class AICopilotEngine:
             formatted_history.append(f"{h['role'].upper()}: {h['content']}")
 
         # 3. Intent classification & spending intent parsing
-        q_lower = user_query.lower()
-        parsed_spending = SpendingInsightEngine.parse_spending_intent(user_query)
+        q_lower = clean_query.lower()
+        parsed_spending = SpendingInsightEngine.parse_spending_intent(clean_query)
 
+        is_emergency_query = any(w in q_lower for w in [
+            "emergency", "buffer", "safety buffer", "rainy day", "runway", "liquid capital", "cash cushion", "savings cushion"
+        ])
+        is_networth_query = any(w in q_lower for w in [
+            "net worth", "networth", "total assets", "balance sheet", "how much am i worth", "wealth"
+        ])
         is_profile_query = any(w in q_lower for w in [
             "health score", "score", "dna", "profile", "archetype", "action plan",
             "actions", "what should i do", "recommendation", "recommendations", "50/30/20", "budget"
@@ -118,6 +134,9 @@ class AICopilotEngine:
 
         # 5. Base context blocks
         context_blocks = []
+        if mcp_context_blocks:
+            context_blocks.extend(mcp_context_blocks)
+
         context_blocks.append(
             f"• Total Liquid Capital: £{p.get('gbp_balance', 0.0):,.2f}\n"
             f"• Current Liquid Runway: {p.get('liquid_runway_days', 0.0):.1f} DAYS (based on verified daily burn of £{p.get('daily_burn_rate', 0.0):,.2f}/day)\n"
@@ -125,8 +144,59 @@ class AICopilotEngine:
             f"• 3-Month Emergency Safety Buffer: £{p.get('emergency_buffer_target', 0.0):,.2f}"
         )
 
-        if web_context:
-            context_blocks.append(web_context)
+        # Emergency Fund & Safety Buffer Dedicated Audit
+        if is_emergency_query:
+            target_buffer = p.get('emergency_buffer_target', 0.0)
+            liquid_capital = p.get('gbp_balance', 0.0)
+            buffer_diff = liquid_capital - target_buffer
+            buffer_status_str = f"Shortfall of £{abs(buffer_diff):,.2f} below the recommended 3-month buffer" if buffer_diff < 0 else f"Surplus of £{buffer_diff:,.2f} above the recommended 3-month buffer"
+            runway_days = p.get('liquid_runway_days', 0.0)
+
+            tools_executed.append({
+                "tool_name": "emergency_buffer_audit",
+                "type": "deterministic_emergency_engine",
+                "source": "Deterministic Profiler & Watchdog",
+                "latency_ms": 0.4,
+                "status": "SUCCESS",
+                "summary": f"Emergency Target: £{target_buffer:,.2f}, Liquid Capital: £{liquid_capital:,.2f}, Shortfall: £{abs(buffer_diff):,.2f}, Runway: {runway_days:.1f} days"
+            })
+
+            emergency_block = (
+                f"• VERIFIED EMERGENCY FUND & SAFETY BUFFER AUDIT:\n"
+                f"  - Recommended 3-Month Emergency Target: £{target_buffer:,.2f}\n"
+                f"  - Current Liquid Capital Available: £{liquid_capital:,.2f}\n"
+                f"  - Buffer Status: {buffer_status_str} ({runway_days:.1f} days of living runway vs 90 days recommended)\n"
+                f"  - Verified 30-Day Monthly Living Expenses: £{p.get('monthly_burn_estimate', 0.0):,.2f}/month (£{p.get('daily_burn_rate', 0.0):,.2f}/day)\n"
+                f"  - Strategic Priority: Allocate savings to reach the £{target_buffer:,.2f} threshold in an instant-access Cash ISA or high-yield account (e.g. Trading 212 at 4.87% AER)."
+            )
+            context_blocks.append(emergency_block)
+
+        # Net Worth & Balance Sheet Dedicated Audit
+        if is_networth_query:
+            nw = context.get("net_worth", {})
+            bd = nw.get("breakdown", {})
+            tools_executed.append({
+                "tool_name": "net_worth_audit",
+                "type": "deterministic_balance_sheet_engine",
+                "source": "SQLite data/financial.db (Multi-Asset Engine)",
+                "latency_ms": 0.5,
+                "status": "SUCCESS",
+                "summary": f"Net Worth: £{nw.get('net_worth', 0.0):,.2f}, Total Assets: £{nw.get('total_assets', 0.0):,.2f}, Liabilities: £{nw.get('total_liabilities', 0.0):,.2f}"
+            })
+            nw_block = (
+                f"• VERIFIED CLIENT NET WORTH AUDIT (BALANCE SHEET):\n"
+                f"  - Total Net Worth: £{nw.get('net_worth', 0.0):,.2f}\n"
+                f"  - Total Assets: £{nw.get('total_assets', 0.0):,.2f}\n"
+                f"  - Total Liabilities (Debts): £{nw.get('total_liabilities', 0.0):,.2f}\n"
+                f"  - Liquid Net Worth (Cash + Liquid Investments): £{nw.get('liquid_net_worth', 0.0):,.2f}\n"
+                f"  - Asset Class Breakdown:\n"
+                f"    * Cash & Current/Savings: £{bd.get('cash', 0.0):,.2f}\n"
+                f"    * Investments & ISAs: £{bd.get('investment', 0.0):,.2f}\n"
+                f"    * Pensions (SIPP & Workplace): £{bd.get('pension', 0.0):,.2f}\n"
+                f"    * Property & Real Estate: £{bd.get('property', 0.0):,.2f}\n"
+                f"    * Contractual Liabilities: £{bd.get('liability', 0.0):,.2f}"
+            )
+            context_blocks.append(nw_block)
 
         # 6. Specific Category or Keyword Spending Query
         if is_category_spend or (is_general_spend and parsed_spending.get("matched_category")):
@@ -260,7 +330,7 @@ class AICopilotEngine:
                 f"• 60% Marginal Tax Trap Status: {tax['trap_60_percent']['message']}"
             )
 
-        if is_market_query and not web_context:
+        if is_market_query and not any("BENCHMARKS" in b for b in context_blocks):
             context_blocks.append("• Top Cash ISA Benchmark: Trading 212 at 4.87% AER (Flexible, 100% Tax-Free)")
 
         # 11. Credit & Borrowing Health / Underwriter Affordability Context
@@ -317,33 +387,44 @@ class AICopilotEngine:
             )
             context_blocks.append(credit_block)
 
-        system_prompt = f"""You are an elite UK Chartered Financial Planner and Independent Fiduciary Copilot.
-Your fiduciary duty is 100% to this client: zero affiliate bias, zero marketing fluff, mathematically rigorous, transparent, and direct.
+        wrapped_context = PromptGuard.wrap_context_boundaries("\n\n".join(context_blocks))
+
+        system_prompt = f"""You are the client's private, on-device Personal Financial Analytics Copilot and Fiduciary Engine.
+Your fiduciary duty is 100% to this client: zero affiliate bias, zero marketing fluff, mathematically exact, transparent, and direct.
+All information you provide is deterministic mathematical analysis, database calculation, and analytical data retrieval—it is NOT regulated, speculative, or product-selling advice.
+
+COMPLIANCE & SYSTEM DIRECTIVES:
+1. NEVER refuse to answer legitimate queries about the client's verified data, balances, emergency buffers, runway, transactions, or market benchmarks.
+2. NEVER output disclaimers like "I cannot provide financial advice", "I am just an AI", or "Please speak with a certified financial advisor" when asked about the user's balances, transactions, emergency fund targets, or net worth. The user has explicitly authorized this system to report and explain their own private financial telemetry.
+3. Ground answers strictly in the verified context enclosed in <verified_financial_context> below. Never invent phantom numbers, transactions, or fake rates.
+4. When asked about emergency fund, safety buffer, or runway (e.g. 'What is my emergency fund buffer?'):
+   - State clearly: The recommended 3-month emergency safety buffer target is £{p.get('emergency_buffer_target', 0.0):,.2f}, and current liquid capital is £{p.get('gbp_balance', 0.0):,.2f}.
+   - Report the exact shortfall (£{max(0.0, p.get('emergency_buffer_target', 0.0) - p.get('gbp_balance', 0.0)):,.2f}) or surplus, and current liquid runway ({p.get('liquid_runway_days', 0.0):.1f} days vs 90 days recommended).
+   - Base this on verified monthly living burn of £{p.get('monthly_burn_estimate', 0.0):,.2f}/month.
+5. When asked about net worth, total assets, or balance sheet:
+   - State the Total Net Worth, Total Assets, and Total Liabilities directly from the verified balance sheet.
+6. When asked how much was spent on a category or merchant (e.g. 'how much did I spend on pubs', 'spending on groceries'):
+   - State the verified total spent and transaction count directly from the verified context.
+   - Mention both the all-time/window total and recent 30-day figures if provided.
+   - Highlight the average amount per transaction and top venues if present.
+   - Never say £0.00 if verified transactions exist in the context.
+7. When asked for "last N" or recent transactions (e.g. "last 10 transactions", "revolut transactions"):
+   - List each matching row directly from the itemized transaction list in a clean numbered list: [Index]. Date | Account | Amount | Merchant.
+   - Do NOT omit or fabricate any transactions.
+8. When asked about Cash ISAs, savings, or Bank of England rates, quote the verified live figures directly. Cite the data source transparently (e.g. '[Bank of England Live Site]' or '[UK Market Benchmarks]').
+9. When asked about financial health score, financial DNA, or action steps:
+   - Cite the exact Health Score (0-100), Financial Archetype, and prioritized action cards from the context.
+10. If asked if an expense is affordable, calculate the exact impact on liquid runway days and the 3-month safety buffer.
+11. Keep answers concise, actionable, and under 250 words.
+12. When asked about credit score, borrowing capacity, mortgage readiness, or underwriter checks:
+    - State the Borrowing Readiness Score (0-100) and Underwriter Tier clearly.
+    - Ground your answer in verified Open Banking cash-flow affordability metrics: Uncommitted Monthly Income (UMI) and Debt-to-Income (DTI).
+    - If BNPL (Klarna/Clearpay) or other risk flags are present, explain the exact underwriter impact and corrective steps.
+    - Quote the verified indicative mortgage borrowing capacity (£) and monthly repayments (4.4% indicative vs 7.5% stress-tested).
 
 CLIENT VERIFIED GROUND TRUTH CONTEXT:
 ══════════════════════════════════════════════════════════════════════
-{chr(10).join(context_blocks)}
-
-GUIDELINES:
-1. Ground answers strictly in the verified figures above. Never invent phantom expenses or fictional numbers.
-2. When asked how much was spent on a category or merchant (e.g. 'how much did I spend on pubs', 'spending on groceries'):
-   - State the verified total spent and transaction count directly from the verified context above.
-   - Mention both the all-time/window total and recent 30-day figures if provided.
-   - Highlight the average amount per transaction and top venues if present.
-   - Never say £0.00 if verified transactions exist in the context above.
-3. When asked for "last N" or recent transactions (e.g. "last 10 transactions", "revolut transactions"):
-   - List each matching row directly from the itemized transaction list above in a clean numbered list: [Index]. Date | Account | Amount | Merchant.
-   - Do NOT omit or fabricate any transactions.
-4. When asked about Cash ISAs, savings, or Bank of England rates, quote the live verified figures above directly. When helpful, cite the data source transparently (e.g. '[Live UK Market Benchmarks]' or '[Bank of England Live Site]').
-5. When asked about financial health score, financial DNA, or action steps:
-   - Cite the exact Health Score (0-100), Financial Archetype, and prioritized action cards from the context.
-6. If asked if an expense is affordable, calculate the exact impact on liquid runway days and the 3-month safety buffer.
-7. Keep answers concise, actionable, and under 250 words.
-8. When asked about credit score, borrowing capacity, mortgage readiness, or underwriter checks:
-   - State the Borrowing Readiness Score (0-100) and Underwriter Tier clearly.
-   - Ground your answer in verified Open Banking cash-flow affordability metrics: Uncommitted Monthly Income (UMI) and Debt-to-Income (DTI).
-   - If BNPL (Klarna/Clearpay) or other risk flags are present, explain the exact underwriter impact and corrective steps.
-   - Quote the verified indicative mortgage borrowing capacity (£) and monthly repayments (4.4% indicative vs 7.5% stress-tested).
+{wrapped_context}
 """
 
         conversation_context = ("\n\nRECENT CONVERSATION:\n" + "\n".join(formatted_history)) if formatted_history else ""
