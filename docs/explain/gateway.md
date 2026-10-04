@@ -33,4 +33,4 @@ flowchart LR
 ## Notes from reading the code
 
 - The Prompt Guard matches fixed patterns. It does not catch paraphrased attacks. Treat it as a first filter, not a full defence.
-- The cache key includes the full system prompt. A prompt change therefore causes a cache miss. This matters for the A/B test in `experiments/`.
+- The cache key includes the model, parameters, verified context, and system prompt. Changes to system instructions or context trigger clean cache misses.

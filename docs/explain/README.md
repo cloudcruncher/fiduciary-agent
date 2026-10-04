@@ -1,12 +1,9 @@
-# Explain-formats experiments
+# Interactive Architecture & System Explainers
 
-Made with the `explain-formats` skill. Each file uses one step of its ladder: STE writing, diagram, HTML page, video.
+This directory contains standalone interactive explainers and technical architectural specifications for the Personal Fiduciary Agent.
 
-| File | Format | Status |
+| Document / Tool | Format | Purpose & Contents |
 |---|---|---|
-| `gateway.md` | Mermaid diagram + STE table | Done. Not rendered here. View it on GitHub. |
-| `credit-messages-ste.md` | STE rewrite of user-facing credit text | Proposal. The code strings are unchanged. |
-| `credit-explorer.html` | Interactive page. Open it in a browser. | Done. Scoring checked against the Python engine on 300 random cases. |
-| `enterprise-walkthrough.html` | Interactive enterprise design & architecture walkthrough | Done. Design rationale, PoC vs production, bank compliance, and alternatives. |
-| `prompt-ste-ab.md` + `../../experiments/prompt_ab.py` | A/B test of the system prompt | Done as a smoke test. Read its limits. |
-| `video/` | Script, Manim source, rendered `gateway-story.mp4` (80 s, narrated) | Rendered. Narration has long silent gaps. See `video/script.md`. |
+| [**enterprise-walkthrough.html**](enterprise-walkthrough.html) | Interactive HTML Application | Comprehensive deep-dive covering institutional solution design, production vs. PoC differences, bank-grade compliance (FCA Consumer Duty, ISO 27001), real-time telemetry, and technical alternative evaluations. |
+| [**credit-explorer.html**](credit-explorer.html) | Interactive HTML Simulator | Client-side UK statutory creditworthiness & affordability simulator mirroring the deterministic Python engine in `fiduciary/analysis/credit.py`. |
+| [**gateway.md**](gateway.md) | Architectural Specification | Mermaid flowchart and step-by-step breakdown of query lifecycle, Prompt Guard validation, MCP context grounding, caching, and multi-tier LLM failover. |

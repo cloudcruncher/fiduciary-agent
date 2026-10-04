@@ -417,9 +417,7 @@ Interactive architectural diagrams, sequence flows, grounding guardrails, and da
 - 🧮 **[Interactive Credit Score Explorer (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/credit-explorer.html)**
 - 🧭 **[Complete System Walkthrough & User Guide (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/guide.html)**
 - 📐 **[AI Gateway Architecture Diagram & Failover Spec](docs/explain/gateway.md)**
-- ✍️ **[ASD-STE100 Plain Technical English Messaging](docs/explain/credit-messages-ste.md)**
-- 🔬 **[Empirical System Prompt A/B Benchmark](docs/explain/prompt-ste-ab.md)**
-- 🎬 **[Programmatic Explainer Video & Narration](docs/explain/video/)**
+- 📁 **[Interactive Explainers Directory](docs/explain/README.md)**
 - Local System Tour and Module Guide: `http://localhost:8080/guide`.
 - Local Interactive Architecture: `http://localhost:8080/architecture`.
 
