@@ -9,9 +9,12 @@ from fiduciary.storage.db import (
     get_rate_cache,
     get_recurring_bills,
     init_db,
+    insert_transactions,
+    purge_stale_pending_transactions,
     save_chat_message,
     save_oauth_tokens,
     set_rate_cache,
+    upsert_account,
     upsert_custom_asset,
     upsert_recurring_bill,
 )
@@ -123,4 +126,151 @@ def test_seed_demo_data():
 
     txs = get_recent_transactions(limit=100)
     assert len(txs) > 30
+
+
+def test_insert_transactions_reconciles_pending_when_settled_arrives():
+    init_db()
+    acc_id = "test_reconcile_acc"
+    upsert_account(
+        acc_id=acc_id,
+        institution_id="revolut",
+        raw_account_id="raw_rec_1",
+        name="Revolut Current",
+        account_type="current",
+        currency="GBP",
+        current_balance=500.0,
+        available_balance=500.0,
+    )
+
+    # 1. Insert pending transaction
+    pending_tx = [{
+        "transaction_id": "auth_999",
+        "booking_date": "2026-10-03",
+        "amount": -13.87,
+        "currency": "GBP",
+        "counterparty_name": "Welcome Brentford",
+        "description": "Card payment Welcome Brentford",
+        "category": "Groceries",
+        "status": "pending",
+    }]
+    insert_transactions(acc_id, pending_tx)
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, status FROM transactions WHERE account_id = ?", (acc_id,))
+    rows = c.fetchall()
+    assert len(rows) == 1
+    assert rows[0]["status"] == "pending"
+
+    # 2. Settled transaction arrives (different transaction ID from provider, same amount and merchant)
+    settled_tx = [{
+        "transaction_id": "settled_888",
+        "booking_date": "2026-10-04",
+        "amount": -13.87,
+        "currency": "GBP",
+        "counterparty_name": "Welcome Brentford",
+        "description": "Welcome Brentford London",
+        "category": "Groceries",
+        "status": "settled",
+    }]
+    insert_transactions(acc_id, settled_tx)
+
+    c.execute("SELECT id, status FROM transactions WHERE account_id = ?", (acc_id,))
+    rows = c.fetchall()
+    conn.close()
+
+    # The pending row should have been purged/reconciled, leaving only the settled row
+    assert len(rows) == 1
+    assert rows[0]["id"] == f"{acc_id}_settled_888"
+    assert rows[0]["status"] == "settled"
+
+    delete_account(acc_id)
+
+
+def test_insert_transactions_skips_pending_if_settled_already_exists():
+    init_db()
+    acc_id = "test_skip_pending_acc"
+    upsert_account(
+        acc_id=acc_id,
+        institution_id="revolut",
+        raw_account_id="raw_skip_1",
+        name="Revolut Current",
+        account_type="current",
+        currency="GBP",
+        current_balance=500.0,
+        available_balance=500.0,
+    )
+
+    settled_tx = [{
+        "transaction_id": "settled_111",
+        "booking_date": "2026-10-02",
+        "amount": -25.50,
+        "currency": "GBP",
+        "counterparty_name": "Tesco Superstore",
+        "description": "Tesco Store 1234",
+        "status": "settled",
+    }]
+    insert_transactions(acc_id, settled_tx)
+
+    # Incoming pending transaction for the same charge
+    pending_tx = [{
+        "transaction_id": "auth_000",
+        "booking_date": "2026-10-02",
+        "amount": -25.50,
+        "currency": "GBP",
+        "counterparty_name": "Tesco Superstore",
+        "description": "Tesco Pending Auth",
+        "status": "pending",
+    }]
+    insert_transactions(acc_id, pending_tx)
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, status FROM transactions WHERE account_id = ?", (acc_id,))
+    rows = c.fetchall()
+    conn.close()
+
+    # Only settled exists, pending was skipped
+    assert len(rows) == 1
+    assert rows[0]["id"] == f"{acc_id}_settled_111"
+    assert rows[0]["status"] == "settled"
+
+    delete_account(acc_id)
+
+
+def test_purge_stale_pending_transactions():
+    init_db()
+    acc_id = "test_stale_acc"
+    upsert_account(
+        acc_id=acc_id,
+        institution_id="revolut",
+        raw_account_id="raw_stale_1",
+        name="Revolut Current",
+        account_type="current",
+        currency="GBP",
+        current_balance=500.0,
+        available_balance=500.0,
+    )
+
+    txs = [
+        {"transaction_id": "p1", "booking_date": "2026-10-04", "amount": -10.0, "status": "pending"},
+        {"transaction_id": "p2", "booking_date": "2026-10-04", "amount": -20.0, "status": "pending"},
+    ]
+    insert_transactions(acc_id, txs)
+
+    # Only p2 is currently reported by provider
+    active_ids = {f"{acc_id}_p2"}
+    purge_stale_pending_transactions(acc_id, active_ids)
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id FROM transactions WHERE account_id = ?", (acc_id,))
+    rows = c.fetchall()
+    conn.close()
+
+    assert len(rows) == 1
+    assert rows[0]["id"] == f"{acc_id}_p2"
+
+    delete_account(acc_id)
+
 

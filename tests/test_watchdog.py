@@ -16,13 +16,36 @@ def test_detect_price_hikes():
 def test_detect_duplicate_charges():
     watchdog = FinancialWatchdog()
     sample_txs = [
-        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10"},
-        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10"},
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10", "status": "settled"},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10", "status": "settled"},
     ]
     dups = watchdog._detect_duplicate_charges(sample_txs)
     assert len(dups) == 1
     assert dups[0]["merchant"] == "Coffee House"
     assert dups[0]["amount"] == 4.50
+
+
+def test_detect_duplicate_charges_suppresses_pending_settled_transition():
+    watchdog = FinancialWatchdog()
+    # When a transaction exists in both pending and settled states during bank clearing
+    sample_txs = [
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": "2026-10-03", "status": "pending"},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": "2026-10-03", "status": "settled"},
+    ]
+    dups = watchdog._detect_duplicate_charges(sample_txs)
+    # Must NOT flag as duplicate charge
+    assert len(dups) == 0
+
+
+def test_detect_duplicate_charges_ignores_zero_preauthorizations():
+    watchdog = FinancialWatchdog()
+    # Card pre-auths of £0.00 should never trigger duplicate charge alerts
+    sample_txs = [
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": "2026-09-26"},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": "2026-09-26"},
+    ]
+    dups = watchdog._detect_duplicate_charges(sample_txs)
+    assert len(dups) == 0
 
 def test_detect_bills():
     watchdog = FinancialWatchdog()

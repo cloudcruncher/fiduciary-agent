@@ -11,8 +11,10 @@ from fiduciary.config import (
     TRUELAYER_USE_SANDBOX,
 )
 from fiduciary.storage.db import (
+    _names_match,
     get_oauth_tokens,
     insert_transactions,
+    purge_stale_pending_transactions,
     save_net_worth_snapshot,
     save_oauth_tokens,
     upsert_account,
@@ -222,43 +224,82 @@ class TrueLayerClient:
             )
 
             # 3. Fetch Settled Transactions (last 60 days)
+            settled_list = []
             try:
                 now = datetime.now()
                 from_date = (now - timedelta(days=60)).strftime("%Y-%m-%d")
                 to_date = now.strftime("%Y-%m-%d")
                 tx_url = f"{self.api_base}/data/v1/accounts/{raw_acc_id}/transactions?from={from_date}&to={to_date}"
                 tx_resp = requests.get(tx_url, headers=headers, timeout=15)
-                raw_txs = []
                 if tx_resp.status_code == 200:
-                    raw_txs = tx_resp.json().get("results", [])
-
-                # 4. Fetch Pending Transactions (recent card taps/authorizations done in last minutes/hours)
-                try:
-                    pending_url = f"{self.api_base}/data/v1/accounts/{raw_acc_id}/transactions/pending"
-                    pending_resp = requests.get(pending_url, headers=headers, timeout=15)
-                    if pending_resp.status_code == 200:
-                        pending_txs = pending_resp.json().get("results", [])
-                        raw_txs.extend(pending_txs)
-                except Exception:
-                    pass
-
-                tx_list = []
-                for t in raw_txs:
-                    amt = float(t.get("amount", 0.0))
-                    tx_list.append({
-                        "transaction_id": str(t.get("transaction_id")),
-                        "booking_date": (t.get("timestamp") or "")[:10] or now.strftime("%Y-%m-%d"),
-                        "amount": amt,
-                        "currency": t.get("currency", "GBP"),
-                        "counterparty_name": t.get("merchant_name") or t.get("description", ""),
-                        "description": t.get("description", ""),
-                        "category": t.get("transaction_category", "General")
-                    })
-                if tx_list:
-                    insert_transactions(acc_db_id, tx_list)
-                    total_txs += len(tx_list)
+                    for t in tx_resp.json().get("results", []):
+                        amt = float(t.get("amount", 0.0))
+                        settled_list.append({
+                            "transaction_id": str(t.get("transaction_id")),
+                            "booking_date": (t.get("timestamp") or "")[:10] or now.strftime("%Y-%m-%d"),
+                            "amount": amt,
+                            "currency": t.get("currency", "GBP"),
+                            "counterparty_name": t.get("merchant_name") or t.get("description", ""),
+                            "description": t.get("description", ""),
+                            "category": t.get("transaction_category", "General"),
+                            "status": "settled"
+                        })
             except Exception:
                 pass
+
+            # 4. Fetch Pending Transactions (recent card taps/authorizations done in last minutes/hours)
+            pending_list = []
+            try:
+                pending_url = f"{self.api_base}/data/v1/accounts/{raw_acc_id}/transactions/pending"
+                pending_resp = requests.get(pending_url, headers=headers, timeout=15)
+                if pending_resp.status_code == 200:
+                    for p in pending_resp.json().get("results", []):
+                        amt = float(p.get("amount", 0.0))
+                        p_desc = p.get("merchant_name") or p.get("description", "")
+                        p_date = (p.get("timestamp") or "")[:10] or now.strftime("%Y-%m-%d")
+
+                        # Intra-sync deduplication:
+                        # Skip if matching transaction is already settled in this batch
+                        already_settled = False
+                        for s in settled_list:
+                            if abs(s["amount"] - amt) < 0.01:
+                                s_desc = s["counterparty_name"] or s["description"]
+                                if p_desc.lower() == s_desc.lower() or _names_match(p_desc, s_desc):
+                                    try:
+                                        d_s = datetime.strptime(s["booking_date"], "%Y-%m-%d")
+                                        d_p = datetime.strptime(p_date, "%Y-%m-%d")
+                                        if abs((d_s - d_p).days) <= 3:
+                                            already_settled = True
+                                            break
+                                    except Exception:
+                                        pass
+                        if not already_settled:
+                            pending_list.append({
+                                "transaction_id": str(p.get("transaction_id")),
+                                "booking_date": p_date,
+                                "amount": amt,
+                                "currency": p.get("currency", "GBP"),
+                                "counterparty_name": p_desc,
+                                "description": p.get("description", ""),
+                                "category": p.get("transaction_category", "General"),
+                                "status": "pending"
+                            })
+            except Exception:
+                pass
+
+            # Insert settled first (automatically reconciles and purges matching pending records in SQLite)
+            if settled_list:
+                insert_transactions(acc_db_id, settled_list)
+                total_txs += len(settled_list)
+
+            # Insert remaining genuinely pending transactions
+            if pending_list:
+                insert_transactions(acc_db_id, pending_list)
+                total_txs += len(pending_list)
+
+            # Purge any stale pending transactions that are no longer active in TrueLayer
+            active_pending_ids = {f"{acc_db_id}_{p['transaction_id']}" for p in pending_list}
+            purge_stale_pending_transactions(acc_db_id, active_pending_ids)
 
             synced_accounts.append({
                 "institution": provider_name,

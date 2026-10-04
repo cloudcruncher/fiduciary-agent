@@ -130,10 +130,13 @@ def cmd_transactions(args):
         amt = float(tx.get("amount", 0.0))
         amt_str = f"+£{amt:,.2f}" if amt > 0 else f"-£{abs(amt):,.2f}"
         style_color = "green bold" if amt > 0 else ("white" if abs(amt) < 30 else "yellow bold")
+        merchant = (tx.get("counterparty_name") or tx.get("description") or "")[:35]
+        if (tx.get("status") or "").lower() == "pending":
+            merchant += " [yellow bold](Pending)[/yellow bold]"
         t.add_row(
             tx.get("booking_date", "")[:10],
             (tx.get("institution_name") or tx.get("account_name") or tx.get("account_id") or "")[:20],
-            (tx.get("counterparty_name") or tx.get("description") or "")[:35],
+            merchant,
             tx.get("category", "General"),
             f"[{style_color}]{amt_str}[/{style_color}]"
         )

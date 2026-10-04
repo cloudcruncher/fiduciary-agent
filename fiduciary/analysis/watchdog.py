@@ -307,9 +307,13 @@ class FinancialWatchdog:
             amt = float(tx.get("amount", 0.0))
             if amt >= 0:
                 continue
+            # Skip zero or micro transactions (e.g. £0.00 card verification checks)
+            if abs(amt) < 0.01:
+                continue
             name = (tx.get("counterparty_name") or tx.get("description") or "").strip()
             date_str = tx.get("booking_date")
             acc_id = tx.get("account_id")
+            tx_status = (tx.get("status") or "settled").lower()
             if not date_str or not name:
                 continue
             try:
@@ -319,7 +323,8 @@ class FinancialWatchdog:
                         "date": dt,
                         "amount": abs(amt),
                         "merchant": name,
-                        "tx_id": tx.get("id") or tx.get("transaction_id")
+                        "tx_id": tx.get("id") or tx.get("transaction_id"),
+                        "status": tx_status
                     })
             except Exception:
                 continue
@@ -330,6 +335,11 @@ class FinancialWatchdog:
             for i in range(len(charges) - 1):
                 c1 = charges[i]
                 c2 = charges[i+1]
+                # If one is pending and one is settled, NEVER flag as duplicate charge
+                # (They represent the pending authorization transitioning to settled)
+                if (c1.get("status") == "pending" or c2.get("status") == "pending") and c1.get("status") != c2.get("status"):
+                    continue
+
                 if c1["merchant"].lower() == c2["merchant"].lower() and abs(c1["amount"] - c2["amount"]) < 0.01:
                     days_apart = abs((c2["date"] - c1["date"]).days)
                     if days_apart <= 1:  # within 24-48 hours

@@ -2089,6 +2089,10 @@ DASHBOARD_HTML = """
                     const amountClass = isCredit ? 'text-emerald-400 font-bold' : 'text-slate-200 font-medium';
 
                     const merchantName = t.counterparty_name || t.description || 'Unknown Counterparty';
+                    const isPending = (t.status || '').toLowerCase() === 'pending';
+                    const pendingBadge = isPending
+                        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">Pending</span>`
+                        : '';
                     const subText = t.account_name ? `<span class="text-[10px] text-slate-500 block">${t.account_name}</span>` : '';
 
                     return `
@@ -2100,7 +2104,10 @@ DASHBOARD_HTML = """
                                 </span>
                             </td>
                             <td class="py-2.5 font-medium text-slate-200">
-                                <div>${merchantName}</div>
+                                <div class="flex items-center space-x-1.5">
+                                    <span>${merchantName}</span>
+                                    ${pendingBadge}
+                                </div>
                                 ${subText}
                             </td>
                             <td class="py-2.5 text-slate-400 text-[11px]">

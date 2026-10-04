@@ -59,6 +59,9 @@ def init_db():
         description TEXT,
         category TEXT,
         is_recurring INTEGER DEFAULT 0,
+        statement_batch_id TEXT,
+        raw_description TEXT,
+        status TEXT DEFAULT 'settled',
         FOREIGN KEY (account_id) REFERENCES accounts (id)
     );
 
@@ -167,13 +170,19 @@ def init_db():
     if "notes" not in existing_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN notes TEXT")
 
-    # Safe column migrations on transactions table for provenance and raw description
+    # Safe column migrations on transactions table for provenance, raw description, and pending status
     cursor.execute("PRAGMA table_info(transactions)")
     existing_trans_cols = [row[1] for row in cursor.fetchall()]
     if "statement_batch_id" not in existing_trans_cols:
         cursor.execute("ALTER TABLE transactions ADD COLUMN statement_batch_id TEXT")
     if "raw_description" not in existing_trans_cols:
         cursor.execute("ALTER TABLE transactions ADD COLUMN raw_description TEXT")
+    if "status" not in existing_trans_cols:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN status TEXT DEFAULT 'settled'")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_trans_status ON transactions(status)")
+
+    # Run pending-to-settled duplicate reconciliation
+    reconcile_pending_duplicates(cursor)
 
     # Safe column migration on llm_traces for judge evaluation and tool observability
     cursor.execute("PRAGMA table_info(llm_traces)")
@@ -321,6 +330,91 @@ def generate_tx_fingerprint(account_id: str, booking_date: str, amount: float, d
     payload = f"{account_id}|{booking_date}|{amount:.2f}|{norm_desc}".encode("utf-8")
     return f"tx_{hashlib.sha256(payload).hexdigest()[:16]}"
 
+def _names_match(n1: str, n2: str) -> bool:
+    """Checks if two counterparty/description strings match or share a normalized core."""
+    if not n1 or not n2:
+        return True
+    s1 = re.sub(r"[^a-z0-9]", "", n1.lower())
+    s2 = re.sub(r"[^a-z0-9]", "", n2.lower())
+    if not s1 or not s2:
+        return True
+    return s1 in s2 or s2 in s1 or (len(s1) >= 6 and len(s2) >= 6 and s1[:8] == s2[:8])
+
+
+def reconcile_pending_duplicates(cursor):
+    """
+    Cleans up duplicate pairs in the transactions table caused by pending-to-settled transitions,
+    and removes duplicate £0.00 card pre-authorization checks.
+    """
+    try:
+        cursor.execute("""
+            SELECT id, account_id, booking_date, amount, counterparty_name, description, status, raw_description
+            FROM transactions
+            ORDER BY booking_date DESC, (CASE WHEN raw_description IS NOT NULL THEN 1 ELSE 0 END) DESC, id DESC
+        """)
+        all_txs = [dict(r) for r in cursor.fetchall()]
+        seen = []
+        to_delete_ids = []
+
+        for tx in all_txs:
+            amt = float(tx.get("amount", 0.0))
+            m_name = (tx.get("counterparty_name") or tx.get("description") or "").strip()
+            d_str = tx.get("booking_date")
+            acc = tx.get("account_id")
+            s_val = (tx.get("status") or "settled").lower()
+
+            is_dup = False
+            for prev in seen:
+                if prev["account_id"] == acc and abs(prev["amount"] - amt) < 0.001:
+                    prev_name = (prev.get("counterparty_name") or prev.get("description") or "").strip()
+                    if m_name.lower() == prev_name.lower() or _names_match(m_name, prev_name):
+                        if prev["booking_date"] == d_str:
+                            is_dup = True
+                            break
+                        elif s_val == "pending" or (prev.get("status") or "settled").lower() == "pending":
+                            try:
+                                d1 = datetime.strptime(d_str[:10], "%Y-%m-%d")
+                                d2 = datetime.strptime(prev["booking_date"][:10], "%Y-%m-%d")
+                                if abs((d1 - d2).days) <= 2:
+                                    is_dup = True
+                                    break
+                            except Exception:
+                                pass
+
+            if is_dup:
+                to_delete_ids.append(tx["id"])
+            else:
+                seen.append(tx)
+
+        if to_delete_ids:
+            cursor.executemany("DELETE FROM transactions WHERE id = ?", [(tid,) for tid in to_delete_ids])
+
+        # Clean up £0.00 pre-authorization checks older than 3 days
+        cursor.execute("""
+            DELETE FROM transactions
+            WHERE ABS(amount) < 0.001 AND booking_date < date('now', '-3 days')
+        """)
+    except Exception:
+        pass
+
+
+def purge_stale_pending_transactions(account_id: str, active_pending_ids: Optional[set] = None):
+    """
+    Cleans up pending transactions on an account that are no longer active in the provider feed.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    if active_pending_ids is not None:
+        cursor.execute("SELECT id FROM transactions WHERE account_id = ? AND status = 'pending'", (account_id,))
+        for row in cursor.fetchall():
+            if row["id"] not in active_pending_ids:
+                cursor.execute("DELETE FROM transactions WHERE id = ?", (row["id"],))
+    else:
+        cursor.execute("DELETE FROM transactions WHERE account_id = ? AND status = 'pending' AND booking_date < date('now', '-7 days')", (account_id,))
+    conn.commit()
+    conn.close()
+
+
 def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], batch_id: Optional[str] = None):
     conn = get_connection()
     cursor = conn.cursor()
@@ -332,6 +426,43 @@ def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], bat
         raw_cat = tx.get("category", "General")
         booking_date = str(tx.get("booking_date", ""))
         smart_cat = classify_transaction(name, desc, raw_cat, amt)
+        tx_status = (tx.get("status") or "settled").lower()
+
+        # Reconcile pending vs settled:
+        # If incoming transaction is SETTLED:
+        if tx_status == "settled":
+            # Delete any matching pending transaction on this account within +/- 3 days
+            cursor.execute("""
+                SELECT id, counterparty_name, description FROM transactions
+                WHERE account_id = ? AND status = 'pending' AND ABS(amount - ?) < 0.01
+                AND ABS(julianday(booking_date) - julianday(?)) <= 3.0
+            """, (account_id, amt, booking_date))
+            pending_matches = cursor.fetchall()
+            for p in pending_matches:
+                p_name = (p["counterparty_name"] or p["description"] or "").strip().lower()
+                c_name = (name or desc or "").strip().lower()
+                if p_name == c_name or _names_match(p_name, c_name):
+                    cursor.execute("DELETE FROM transactions WHERE id = ?", (p["id"],))
+
+        # If incoming transaction is PENDING:
+        elif tx_status == "pending":
+            # Check if matching SETTLED transaction already exists
+            cursor.execute("""
+                SELECT id, counterparty_name, description FROM transactions
+                WHERE account_id = ? AND (status IS NULL OR status = 'settled') AND ABS(amount - ?) < 0.01
+                AND ABS(julianday(booking_date) - julianday(?)) <= 3.0
+            """, (account_id, amt, booking_date))
+            settled_matches = cursor.fetchall()
+            already_settled = False
+            for s in settled_matches:
+                s_name = (s["counterparty_name"] or s["description"] or "").strip().lower()
+                c_name = (name or desc or "").strip().lower()
+                if s_name == c_name or _names_match(s_name, c_name):
+                    already_settled = True
+                    break
+            if already_settled:
+                # Do not insert pending transaction if it has already settled!
+                continue
 
         if raw_id and not raw_id.startswith(f"{account_id}_"):
             tx_id = f"{account_id}_{raw_id}"
@@ -345,9 +476,9 @@ def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], bat
         cursor.execute("""
         INSERT INTO transactions (
             id, account_id, transaction_id, booking_date, amount, currency,
-            counterparty_name, description, category, is_recurring, statement_batch_id, raw_description
+            counterparty_name, description, category, is_recurring, statement_batch_id, raw_description, status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             amount = excluded.amount,
             booking_date = excluded.booking_date,
@@ -356,7 +487,8 @@ def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], bat
             category = excluded.category,
             is_recurring = excluded.is_recurring,
             statement_batch_id = COALESCE(excluded.statement_batch_id, transactions.statement_batch_id),
-            raw_description = COALESCE(excluded.raw_description, transactions.raw_description)
+            raw_description = COALESCE(excluded.raw_description, transactions.raw_description),
+            status = excluded.status
         """, (
             tx_id,
             account_id,
@@ -369,7 +501,8 @@ def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], bat
             smart_cat,
             1 if tx.get("is_recurring") else 0,
             b_id,
-            tx.get("raw_description") or desc
+            tx.get("raw_description") or desc,
+            tx_status
         ))
     conn.commit()
     conn.close()
