@@ -23,7 +23,6 @@ from manim import (
     Write,
 )
 
-
 # Scene end times in seconds (see script.md). Narration is laid over these.
 SCENE_ENDS = (8, 20, 34, 48, 60, 80)
 
