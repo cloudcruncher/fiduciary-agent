@@ -154,3 +154,31 @@ def test_api_routes():
     assert res_exchange.status_code == 200
     assert "error" in res_exchange.json() or "status" in res_exchange.json()
 
+    # 24. Statement batches & closed-loop provenance endpoint
+    res_batches = client.get("/api/batches")
+    assert res_batches.status_code == 200
+    batches_data = res_batches.json()
+    assert batches_data["status"] == "success"
+    assert "summary" in batches_data
+    assert "batches" in batches_data
+    summary = batches_data["summary"]
+    assert "reconciliation_rate_pct" in summary
+    assert "total_discrepancy" in summary
+    assert summary["deduplication_mode"] == "SHA-256 Idempotent Upsert"
+
+    # 25. Mobile client TrueLayer redirect validation
+    res_mobile_auth = client.get("/api/truelayer/auth-url", headers={"host": "192.168.1.100:8080"})
+    assert res_mobile_auth.status_code == 200
+    mobile_json = res_mobile_auth.json()
+    assert "requires_mobile_notice" in mobile_json or "auth_url" in mobile_json
+    if mobile_json.get("requires_mobile_notice"):
+        assert "mobile_redirect_uri" in mobile_json
+        assert "laptop_redirect_uri" in mobile_json
+        assert "http://192.168.1.100:8080/truelayer/callback" in mobile_json["mobile_redirect_uri"]
+
+    # 26. Architecture page contains Lead Data Engineering documentation
+    res_arch = client.get("/architecture")
+    assert res_arch.status_code == 200
+    assert "Lead Data Engineering &amp; Closed-Loop Reconciliation" in res_arch.text
+
+

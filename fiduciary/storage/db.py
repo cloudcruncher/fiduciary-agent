@@ -578,6 +578,50 @@ def get_statement_batch_by_id(batch_id: str) -> Optional[Dict[str, Any]]:
     conn.close()
     return dict(row) if row else None
 
+def get_data_engineering_audit_summary() -> Dict[str, Any]:
+    """Computes real-time data engineering integrity metrics, deduplication counts, and closed-loop reconciliation."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            COUNT(*) as total_batches,
+            SUM(CASE WHEN reconciliation_status IN ('RECONCILED', 'CLOSING_BALANCE_VERIFIED') THEN 1 ELSE 0 END) as reconciled_batches,
+            SUM(transactions_count) as total_tx_ingested,
+            SUM(ABS(discrepancy)) as total_discrepancy,
+            SUM(total_inflows) as cumulative_inflows,
+            SUM(total_outflows) as cumulative_outflows
+        FROM statement_batches
+    """)
+    batch_stats = dict(cursor.fetchone())
+    
+    cursor.execute("SELECT COUNT(*) as total_stored_tx FROM transactions")
+    tx_count = cursor.fetchone()["total_stored_tx"]
+    
+    cursor.execute("SELECT COUNT(*) as fingerprinted_tx FROM transactions WHERE statement_batch_id IS NOT NULL")
+    provenance_count = cursor.fetchone()["fingerprinted_tx"]
+    
+    conn.close()
+    
+    tot_batches = batch_stats.get("total_batches") or 0
+    rec_batches = batch_stats.get("reconciled_batches") or 0
+    rec_rate = (rec_batches / tot_batches * 100) if tot_batches > 0 else 100.0
+    
+    return {
+        "total_batches": tot_batches,
+        "reconciled_batches": rec_batches,
+        "reconciliation_rate_pct": round(rec_rate, 1),
+        "total_discrepancy": round(batch_stats.get("total_discrepancy") or 0.0, 2),
+        "total_tx_ingested": batch_stats.get("total_tx_ingested") or 0,
+        "total_stored_tx": tx_count,
+        "provenance_fingerprinted_tx": provenance_count,
+        "cumulative_inflows": round(batch_stats.get("cumulative_inflows") or 0.0, 2),
+        "cumulative_outflows": round(batch_stats.get("cumulative_outflows") or 0.0, 2),
+        "deduplication_mode": "SHA-256 Idempotent Upsert",
+        "evaluator_critic": "Independent Local Llama-3.2 3B SLM (Metal GPU / Zero-Leak)",
+        "double_entry_invariant": "Opening + Inflows - Outflows == Closing"
+    }
+
+
 def get_recent_transactions(
     days: Optional[int] = 30,
     account_id: Optional[str] = None,

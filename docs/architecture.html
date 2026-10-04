@@ -126,6 +126,9 @@
             <button onclick="switchArchTab('schema')" id="tab-schema" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
                 5. Database Schema & Entity Model
             </button>
+            <button onclick="switchArchTab('dataeng')" id="tab-dataeng" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
+                6. Lead Data Engineering &amp; Closed-Loop Reconciliation
+            </button>
         </div>
 
         <!-- TAB 1: SYSTEM TOPOLOGY DIAGRAM -->
@@ -143,21 +146,20 @@
                 <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
                     <pre class="mermaid text-xs">
 flowchart TB
-    subgraph INGESTION["1. INGESTION, LINEAGE &amp; PRIVACY LAYER"]
-        PDF["UK Bank PDF Statements<br/>(NatWest, Barclays, HSBC)"] --> PDFP["On-Device PDF Parser<br/>(pdfplumber + pypdf engine)<br/>• Same-day date propagation<br/>• Multi-line narrative buffer<br/>• Running balance delta signing"]
-        CSV["Bank CSV Exports<br/>(Revolut, Chase, Lloyds)"] --> CSVP["CSV Banking Importer<br/>• UK Date Normalisation"]
+    subgraph INGESTION["1. INGESTION &amp; PRIVACY LAYER"]
+        PDF["UK Bank PDF Statements<br/>(NatWest, Barclays, HSBC)"] --> PDFP["On-Device PDF Parser<br/>(pypdf in-memory extraction)"]
+        CSV["Bank CSV Exports<br/>(Revolut, Chase, Lloyds)"] --> CSVP["CSV Banking Importer"]
         TL["TrueLayer Open Banking API<br/>(Read-Only Account Token)"] --> TLP["TrueLayer Sync Client"]
         WISE["Wise Multi-Currency API<br/>(Direct Read-Only Token)"] --> WCL["Wise Sync Client"]
         
-        PDFP --> RECON["Double-Entry Invariant Engine<br/>• Opening + Inflows - Outflows ≡ Closing<br/>• SHA-256 Batch Provenance Hash<br/>• Idempotent Tx Fingerprinting"]
-        CSVP --> RECON
-        RECON --> PII["PII Privacy Shield<br/>• Sort Code: ••-••-XX<br/>• Account: ••••XXXX"]
+        PDFP --> PII["PII Privacy Shield<br/>• Sort Code: ••-••-XX<br/>• Account: ••••XXXX"]
+        CSVP --> PII
         TLP --> PII
         WCL --> PII
     end
 
     subgraph STORAGE["2. LOCAL AIR-GAPPED STORAGE"]
-        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• statement_batches (Lineage &amp; Discrepancies)<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)<br/>• credit_profile (CRA Scores &amp; Electoral Roll)")]
+        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)<br/>• credit_profile (CRA Scores &amp; Electoral Roll)")]
     end
 
     subgraph CORE["3. DETERMINISTIC PYTHON CORE (ZERO MATH HALLUCINATION)"]
@@ -198,7 +200,7 @@ flowchart TB
         GEMINI -.-> AUDIT
 
         AUDIT --> TRACE["Observability Logger<br/>• Latency (ms)<br/>• Grounding Score<br/>• llm_traces Table"]
-        TRACE -.->|"On demand: ./f judge"| JUDGE["Layer 2: Dedicated SLM Judge<br/>(Llama 3.2 3B on Metal GPU)<br/>• Independent Grounded Critic<br/>• Two-Stage Fact Pre-Audit<br/>• Auto-unloaded (keep_alive: 0)"]
+        TRACE -.->|"On demand: ./f judge"| JUDGE["Layer 2: LLM-as-a-Judge<br/>(Ollama :11434 with think: false)<br/>• Faithfulness / Relevance / Fiduciary<br/>• Auto-unloaded after evaluation"]
         JUDGE -.->|"judge_result_json"| TRACE
     end
 
@@ -317,29 +319,26 @@ sequenceDiagram
                     </div>
                 </div>
 
-                <!-- Sequence Diagram 3: Dedicated SLM Judge -->
+                <!-- Sequence Diagram 3: LLM-as-a-Judge -->
                 <div class="space-y-2 pt-4">
-                    <h4 class="font-bold text-xs text-amber-400 uppercase tracking-wider">C. Independent SLM Judge Evaluation (Llama 3.2 3B on Metal GPU)</h4>
+                    <h4 class="font-bold text-xs text-amber-400 uppercase tracking-wider">C. On-Demand LLM-as-a-Judge Evaluation (16GB-Safe)</h4>
                     <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
                         <pre class="mermaid text-xs">
 sequenceDiagram
     autonumber
     actor User as User (./f judge)
     participant Judge as LLMJudge (judge.py)
-    participant Auditor as GroundingAuditor (Fact Pre-Audit)
-    participant Llama as Llama 3.2 3B (Ollama / Metal GPU)
+    participant Ollama as Local Ollama (:11434 / Metal GPU)
     participant DB as SQLite (llm_traces)
 
     User->>Judge: Evaluate latest trace (./f judge)
     Judge->>DB: Load query, ground-truth context, copilot response
-    Judge->>Auditor: Audit verified vs unverified numeric claims
-    Auditor-->>Judge: Grounding verdict & verified figures
-    Judge->>Llama: POST /api/generate (format: json, think: false, keep_alive: 0, num_ctx: 4096)
-    Note over Llama: Evaluates independently with temp 0.0.<br/>Unloaded from RAM immediately after answering (keep_alive: 0).
-    Llama-->>Judge: JSON: Faithfulness, Precision, Fiduciary Prudence, Actionability
-    Judge->>Judge: Overall Score = 0.40 F + 0.30 P + 0.20 S + 0.10 A
+    Judge->>Ollama: POST /api/generate (format: json, think: false, keep_alive: 0, num_ctx: 4096)
+    Note over Ollama: Evaluates independently with think: false.<br/>Unloaded from RAM immediately after answering (keep_alive: 0).
+    Ollama-->>Judge: JSON: Faithfulness (1.0), Relevance (1.0), Fiduciary Soundness (1.0), Verdict: PASSED
+    Judge->>Judge: Overall Score = 0.45 F + 0.35 S + 0.20 R = 1.00
     Judge->>DB: UPDATE llm_traces SET judge_result_json
-    Judge-->>User: ⚖️ SLM JUDGE VERDICT: PASSED (Overall: 1.00)
+    Judge-->>User: ⚖️ LLM-AS-A-JUDGE VERDICT: PASSED (Overall: 1.00)
                         </pre>
                     </div>
                 </div>
@@ -736,13 +735,121 @@ erDiagram
                     <p class="text-slate-400 font-sans text-[11px]">All connections are local loopbacks (127.0.0.1). Zero outbound external packets.</p>
                 </div>
             </div>
+        <!-- TAB 6: LEAD DATA ENGINEERING & CLOSED-LOOP RECONCILIATION -->
+        <div id="section-dataeng" class="space-y-6 hidden">
+            <div class="card space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Lead Data Engineering &amp; Closed-Loop Reconciliation Architecture</h3>
+                        <p class="text-xs text-slate-400">Formal engineering invariants, cryptographic provenance, stateful narrative buffering, and two-stage SLM critic verification</p>
+                    </div>
+                    <span class="text-xs text-emerald-400 font-mono font-semibold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">Discrepancy ≡ £0.00</span>
+                </div>
+
+                <!-- Mermaid Diagram: Data Pipeline Invariants -->
+                <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
+                    <pre class="mermaid text-xs">
+flowchart TD
+    subgraph STAGE1["1. RAW STATEMENT INGESTION &amp; CRYPTOGRAPHY"]
+        RAW["Raw PDF / CSV Bank Statement"] --> HASH["Compute SHA-256 Batch Fingerprint<br/>file_hash_sha256 = sha256(raw_bytes)"]
+        HASH --> BATCH["Register statement_batches Record<br/>Status: PENDING"]
+    end
+
+    subgraph STAGE2["2. STATEFUL NORMALIZATION &amp; NARRATIVE BUFFER"]
+        BATCH --> TOKEN["Token Lookahead Buffer<br/>• Multi-line narrative stitching<br/>• Overdraft limit bounds filtering"]
+        TOKEN --> DATEP["Stateful Same-Day Date Forward-Propagation<br/>current_date binds to trailing sub-rows"]
+        DATEP --> DELTA["Running Balance Delta Direction Solver<br/>&Delta;B = B(t) - B(t-1)<br/>+Inflow if &Delta;B &gt; 0, -Outflow if &Delta;B &lt; 0"]
+    end
+
+    subgraph STAGE3["3. CLOSED-LOOP DOUBLE-ENTRY SOLVER"]
+        DELTA --> SOLVER["Double-Entry Invariant Proof<br/>Opening + &Sigma;Inflows - &Sigma;Outflows == Closing<br/>&Delta; = Calculated - Actual Closing"]
+        SOLVER -->|Discrepancy == 0.00| REC["Status: RECONCILED / CLOSING_VERIFIED"]
+        SOLVER -->|Discrepancy != 0.00| GAP["Status: UNRECONCILED_GAP (Alert)"]
+    end
+
+    subgraph STAGE4["4. IDEMPOTENT PERSISTENCE"]
+        REC --> UPSERT["Deterministic Transaction Fingerprinting<br/>id = tx_sha256(account:date:amount:norm_desc)<br/>ON CONFLICT(id) DO UPDATE (Zero Duplicates)"]
+        UPSERT --> SQLITE[("Air-Gapped SQLite DB<br/>data/financial.db")]
+    end
+
+    subgraph STAGE5["5. TWO-STAGE CRITIC EVALUATION (SLM ISOLATION)"]
+        SQLITE --> COPILOT["Stage 1: Generative Copilot<br/>Qwen 3.5 4B (Local Metal GPU)"]
+        COPILOT --> CRITIC["Stage 2: Independent Grounded SLM Judge<br/>Llama 3.2 3B (Faithfulness &amp; Math Audit)<br/>keep_alive=0 Metal VRAM Purge"]
+        CRITIC --> TRACE["Audit Provenance &amp; Observability Log"]
+    end
+                    </pre>
+                </div>
+            </div>
+
+            <!-- In-Depth Engineering Guarantees Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
+                <div class="card space-y-3 border-l-4 border-l-emerald-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>📐</span>
+                        <span>Double-Entry Mathematical Invariant</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Retail financial applications commonly sum rows independently, causing rounding errors and phantom money when bank statements omit explicit negative signs or roll pending card authorizations.
+                    </p>
+                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-emerald-300">
+                        Opening + &Sigma; Inflows - &Sigma; Outflows &equiv; Closing Balance (&Delta; &equiv; &pound;0.00)
+                    </div>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        If a single transaction is missed, duplicated, or mis-signed, the batch status is immediately flagged as <code class="text-amber-300">UNRECONCILED_GAP</code> with the exact penny variance recorded in SQLite for auditing.
+                    </p>
+                </div>
+
+                <div class="card space-y-3 border-l-4 border-l-indigo-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>🔐</span>
+                        <span>Cryptographic Provenance &amp; Idempotency</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Financial data pipelines must be resilient to repeated ingestion of overlapping statements (e.g. downloading May-June and then June-July statements).
+                    </p>
+                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-cyan-300">
+                        tx_id = &quot;tx_&quot; + sha256(account | date | amount | norm_description)[:16]
+                    </div>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Every statement batch logs its raw SHA-256 fingerprint in <code class="text-slate-200">statement_batches</code>. Transactions are upserted via deterministic content keys, guaranteeing 100% idempotent deduplication.
+                    </p>
+                </div>
+
+                <div class="card space-y-3 border-l-4 border-l-purple-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>🧠</span>
+                        <span>Stateful Token Normalization Buffer</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        UK statements (NatWest, Barclays, HSBC) frequently wrap lengthy payment narratives (e.g. <em>"BILL PAYMENT FROM J BLOGGS REFERENCE EXPENSES JULY"</em>) across 2 to 4 physical PDF lines with no date or balance on trailing rows.
+                    </p>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        The parser maintains a stateful narrative accumulator that binds orphan description lines to the current active transaction until the next transaction header or balance delta is encountered, while strictly pruning legal footers (<em>"Overdraft Limit £1,000"</em>).
+                    </p>
+                </div>
+
+                <div class="card space-y-3 border-l-4 border-l-amber-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>⚖️</span>
+                        <span>Two-Stage Critic: Grounded SLM Judge Separation</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Standard LLM architectures suffer from confirmation bias when an agent judges its own responses. We enforce an institutional separation of concerns:
+                    </p>
+                    <ul class="text-[11px] text-slate-400 list-disc list-inside space-y-1">
+                        <li><strong>Generative Copilot:</strong> Qwen 3.5 4B generates user summaries and tactical recommendations.</li>
+                        <li><strong>Grounded Critic:</strong> Llama 3.2 3B independently evaluates claims against deterministic SQLite ground truth.</li>
+                        <li><strong>Zero-Leak Metal VRAM Purge:</strong> Evaluator uses <code class="text-amber-300">keep_alive=0</code>, releasing Unified Memory immediately after evaluation.</li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
     </main>
 
     <script>
         function switchArchTab(tabId) {
-            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema'];
+            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema', 'dataeng'];
             tabs.forEach(t => {
                 const sec = document.getElementById(`section-${t}`);
                 const btn = document.getElementById(`tab-${t}`);

@@ -11,7 +11,7 @@ load_dotenv(BASE_DIR / ".env", override=True)
 # Enable Banking credentials
 ENABLE_BANKING_APP_ID = os.getenv("ENABLE_BANKING_APP_ID", "")
 ENABLE_BANKING_KEY_PATH = os.getenv("ENABLE_BANKING_KEY_PATH", str(BASE_DIR / "secrets" / "private_key.pem"))
-REDIRECT_URL = os.getenv("REDIRECT_URL", "http://localhost:8080/callback")
+REDIRECT_URL = os.getenv("REDIRECT_URL", "http://localhost:8080/truelayer/callback")
 
 # Wise direct token
 WISE_API_TOKEN = os.getenv("WISE_API_TOKEN", "")
