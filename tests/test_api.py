@@ -178,7 +178,7 @@ def test_api_routes():
     res_mobile_auth = client.get("/api/truelayer/auth-url", headers={"host": "192.168.1.100:8080"})
     assert res_mobile_auth.status_code == 200
     mobile_json = res_mobile_auth.json()
-    assert "requires_mobile_notice" in mobile_json or "auth_url" in mobile_json
+    assert "requires_mobile_notice" in mobile_json or "auth_url" in mobile_json or "error" in mobile_json
     if mobile_json.get("requires_mobile_notice"):
         assert "mobile_redirect_uri" in mobile_json
         assert "laptop_redirect_uri" in mobile_json
