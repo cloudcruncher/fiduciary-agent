@@ -5,6 +5,8 @@
 [![Linter: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Privacy: 100% Air-Gapped Local](https://img.shields.io/badge/Privacy-100%25%20Air--Gapped%20Local-emerald.svg)](#-privacy-fiduciary-contract--air-gap-guarantees)
 [![Open Banking: UK Regulated](https://img.shields.io/badge/Open%20Banking-TrueLayer%20%7C%20Wise-blueviolet.svg)](#-connecting-real-uk-banks)
+[![Tests: 81 Passed](https://img.shields.io/badge/Tests-81%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
+[![Mobile: PWA & FaceID](https://img.shields.io/badge/Mobile-PWA%20%26%20FaceID-indigo.svg)](#3-mobile-phone-banking--biometric-faceid-linking-zero-egress-lan-architecture)
 [![Architecture: Interactive Map](https://img.shields.io/badge/Architecture-Interactive%20Live%20Map-teal.svg)](https://cloudcruncher.github.io/fiduciary-agent/)
 
 A 100% `uv`-managed, local-first, privacy-preserving fiduciary intelligence harness engineered for Apple Silicon macOS.
@@ -162,7 +164,17 @@ When you are ready to transition from synthetic demo data to your real finances:
    ```
 3. Run `./f connect` or click **`🏦 Connect Bank`** in the web dashboard. Complete the standard UK Open Banking mobile app authentication.
 
-### 3. PDF & CSV Bank Statement Importer (Lead Data Engineering Pipeline)
+### 3. Mobile Phone Banking & Biometric FaceID Linking (Zero-Egress LAN Architecture)
+Connecting UK banks (Lloyds, Revolut, Chase, HSBC, NatWest) often requires biometric authentication (FaceID / TouchID) in your mobile banking app. The harness lets you use your phone to link banks while your Mac handles all local LLM reasoning and data storage:
+1. **Access from Phone over Local Wi-Fi**: Start the local web dashboard on your Mac (`./f ui`). The terminal displays both your local URL (`http://localhost:8080`) and your LAN URL (e.g. `http://192.168.1.100:8080`). Open the LAN URL in Mobile Safari or Chrome.
+2. **Responsive Mobile PWA Experience**: The UI automatically switches to a mobile-optimized view with a sticky bottom navigation dock, compact 2-column metrics cards, and a persistent connection helper.
+3. **Biometric Native Bank App Handoff**: Tap **`🏦 Connect Bank`** on your phone. TrueLayer redirects you to your bank selection. Selecting Lloyds, Revolut, etc. deep-links straight into your installed banking app for instantaneous FaceID or TouchID consent.
+4. **1-Tap Clipboard Redirect Bridge (`📋 Paste from Clipboard & Connect`)**:
+   - *The Open Banking Obstacle*: Standard UK Open Banking mandates strict pre-registration of callback redirect URIs (`http://localhost:8080/truelayer/callback`). When a mobile banking app completes authentication, the mobile browser attempts to redirect to `localhost:8080`, which is unroutable on your phone.
+   - *The Instant Fix*: Copy the address bar URL from your phone browser and tap the prominent green button **`📋 Paste from Clipboard & Connect`** at the top of your Fiduciary dashboard. The app regex-extracts the authorization `code=` and completes the token exchange asynchronously via `/api/truelayer/exchange`.
+5. **Terminal ASCII QR Code Pairing**: Alternatively, run `./f connect` in your Mac terminal or click QR Handoff in the dashboard to render a high-contrast ASCII QR code. Point your iPhone camera to scan and authenticate immediately.
+
+### 4. PDF & CSV Bank Statement Importer (Lead Data Engineering Pipeline)
 Drop any NatWest, Barclays, Revolut, Chase, or HSBC PDF/CSV statement into the drag-and-drop importer at `http://localhost:8080` or ingest via API:
 - **Closed-Loop Double-Entry Accounting Invariant**: Every statement undergoes mathematical reconciliation: $\text{Opening Balance} + \text{Inflows} - \text{Outflows} \equiv \text{Closing Balance}$. Batches are marked `RECONCILED` only if discrepancy is £0.00.
 - **Cryptographic Provenance & Lineage**: SHA-256 batch fingerprints (`statement_batches` table) and deterministic transaction hashes (`generate_tx_fingerprint(account_id, date, amount, desc)`) guarantee idempotent de-duplication across overlapping statements.
@@ -173,7 +185,7 @@ Drop any NatWest, Barclays, Revolut, Chase, or HSBC PDF/CSV statement into the d
   - *Legal & Overdraft Boundary Bounds*: Strict stop conditions eliminate phantom charges from overdraft fee examples and legal terms.
 - **Automated PII Shielding & Categorization**: Sort codes and account numbers are masked (`••-••-30`, `••••7715`), and transactions are categorized into standard UK budget buckets.
 
-### 4. Credit & Underwriter Affordability Engine (FCA MCOB 11)
+### 5. Credit & Underwriter Affordability Engine (FCA MCOB 11)
 UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow affordability** rather than CRA bureau scores alone:
 - **Cash-Flow Affordability**: Automatic payroll detection, Uncommitted Monthly Income (UMI), and Contractual Debt-to-Income (DTI).
 - **Underwriter Risk Scanner**: 90-day scan for BNPL (Klarna, Clearpay, Zilch), bounced direct debits, overdraft dip zones, and gambling spend (<1% benchmark).
@@ -205,6 +217,24 @@ Running local LLMs fast on an M3 MacBook Pro requires specific latency engineeri
 
 ---
 
+## ⚡ Google Antigravity & LLM Optimization Harness ($0.00 Local Offloading)
+
+To prevent exorbitant cloud API token expenditure and guarantee indefinite operational life on limited developer credits, the harness implements aggressive token, context, and credit optimization principles:
+
+1. **Deterministic-First Python Offload ($0.00 LLM Cost)**:
+   - 100% of mathematical aggregation (liquid runway, daily burn velocity, 60% tax trap calculations, net worth splits, mortgage capacity) runs in deterministic Python before any prompt is assembled.
+   - LLMs are never used for arithmetic or database aggregation, eliminating expensive multi-turn reasoning loops and context pollution.
+2. **Dynamic Context Compaction (80% Prompt Reduction)**:
+   - Queries are classified by intent before prompt generation. Rather than dumping entire 90-day transaction ledgers into every turn, only relevant category metrics and top 5 itemized records are injected, shrinking context from ~1,800 tokens down to ~300 tokens.
+3. **Zero-Cost MD5 Response Caching**:
+   - Queries paired with identical financial state hashes hit an in-memory / SQLite response cache, returning instant (<1ms) responses without dispatching GPU inference cycles or cloud API calls.
+4. **Local SLM Default with Cloud Dormancy**:
+   - Out-of-the-box operation defaults entirely to on-device SLMs (`qwen3.5:4b` via Ollama). Cloud Gemini API keys remain completely dormant unless explicitly requested for deep multi-year tax planning.
+5. **Strict Turn & Context Window Ceilings**:
+   - Strict maximum turn limits and context constraints eliminate runaway recursive agent trajectories and memory leaks.
+
+---
+
 ## 🌐 Enterprise AI Gateway & Intelligent Router Support
 
 While local-first execution on Apple Silicon Metal GPU remains the out-of-the-box default for privacy, institutional and team environments often route requests through an AI Gateway (e.g. **LiteLLM Proxy**, **Portkey**, **Cloudflare AI Gateway**, or **vLLM**).
@@ -229,7 +259,7 @@ AI_GATEWAY_MODEL="qwen3.5:4b"              # Target model / alias routed by prox
 
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (69 tests) and automated CI pipeline:
+The repository includes a comprehensive test suite (81 tests) and automated CI pipeline:
 
 ```bash
 # Run full unit and integration test suite

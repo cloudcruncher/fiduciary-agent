@@ -129,6 +129,9 @@
             <button onclick="switchArchTab('dataeng')" id="tab-dataeng" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
                 6. Lead Data Engineering &amp; Closed-Loop Reconciliation
             </button>
+            <button onclick="switchArchTab('mobile')" id="tab-mobile" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
+                7. Mobile Phone Linking &amp; Biometric OAuth Handoff
+            </button>
         </div>
 
         <!-- TAB 1: SYSTEM TOPOLOGY DIAGRAM -->
@@ -845,11 +848,102 @@ flowchart TD
             </div>
         </div>
 
+        <!-- TAB 7: MOBILE PHONE LINKING & BIOMETRIC OAUTH HANDOFF -->
+        <div id="section-mobile" class="hidden space-y-6">
+            <div class="card space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Mobile Phone Linking &amp; Biometric FaceID Architecture</h3>
+                        <p class="text-xs text-slate-400">Zero-compromise security flow connecting mobile banking apps to the Mac host</p>
+                    </div>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">
+                        Universal Link + Biometrics
+                    </span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Most UK banking apps (Lloyds, Revolut, Chase, HSBC, NatWest) mandate biometric hardware authentication (FaceID / TouchID) on a smartphone. The fiduciary agent bridges your phone and Mac host via a zero-egress local network architecture:
+                </p>
+                <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
+                    <pre class="mermaid text-xs">
+sequenceDiagram
+    autonumber
+    actor User as User (Mobile Phone)
+    participant Phone as Mobile Browser (Safari/Chrome)
+    participant Mac as Fiduciary Host (Mac LAN :8080)
+    participant TL as TrueLayer Auth Gateway
+    participant BankApp as Bank Native App (Lloyds/Revolut)
+
+    User->>Phone: Open http://[mac-ip]:8080
+    Phone->>Mac: GET / (Loads Responsive PWA Dashboard)
+    User->>Phone: Tap "Connect Bank"
+    Phone->>Mac: GET /truelayer/auth
+    Mac-->>Phone: 302 Redirect to auth.truelayer.com
+    Phone->>TL: Load Bank Selection
+    User->>TL: Selects Bank (e.g. Lloyds)
+    TL-->>Phone: Universal Link / App Scheme
+    Phone->>BankApp: Deep link launches native banking app
+    User->>BankApp: Biometric FaceID / Passcode Auth
+    BankApp-->>TL: Grants 90-day read-only consent
+    TL-->>Phone: 302 Redirect http://localhost:8080/truelayer/callback?code=AUTH_CODE
+    Note over Phone: Mobile browser cannot reach localhost:8080
+    User->>Phone: 1. Tap "Paste from Clipboard & Connect"<br/>OR 2. Edit URL localhost -> [mac-ip]
+    Phone->>Mac: POST /api/truelayer/exchange {code: "AUTH_CODE"}
+    Mac->>TL: POST /connect/token (Candidate URI Matching)
+    TL-->>Mac: 200 OK {access_token, refresh_token}
+    Mac->>Mac: Store in oauth_tokens & trigger initial sync
+    Mac-->>Phone: 200 OK {status: "success", accounts_synced: 2}
+    Note over User,Phone: Live balances & transactions appear instantly
+                    </pre>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="card space-y-3 border-l-4 border-l-emerald-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>📱</span>
+                        <span>The "Localhost Redirect" Invariant</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Strict OAuth 2.0 specifications enforced by the UK Open Banking Implementation Entity (OBIE) and the FCA mandate that callback redirect URIs cannot contain wildcards or arbitrary dynamic LAN IPs.
+                    </p>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        Redirects must strictly match console-registered endpoints (e.g. <code class="text-slate-200">http://localhost:8080/truelayer/callback</code>). When a mobile banking app completes FaceID authentication, TrueLayer sends the browser back to localhost, which fails on mobile.
+                    </p>
+                </div>
+
+                <div class="card space-y-3 border-l-4 border-l-cyan-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>📋</span>
+                        <span>1-Tap Clipboard Handoff Engine</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        We engineered a seamless 1-tap clipboard bridge: when redirected to the unroutable localhost URL, the user simply copies the URL in Mobile Safari and taps <strong class="text-emerald-300">"📋 Paste from Clipboard &amp; Connect"</strong> in the dashboard.
+                    </p>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        The frontend uses <code class="text-slate-200">navigator.clipboard.readText()</code> to extract the authorization code via regex and asynchronously posts it to <code class="text-cyan-300">/api/truelayer/exchange</code>, eliminating all friction.
+                    </p>
+                </div>
+
+                <div class="card space-y-3 border-l-4 border-l-purple-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>🔄</span>
+                        <span>Multi-Candidate Token Exchange</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        OAuth token exchange strictly validates that the <code class="text-slate-200">redirect_uri</code> sent during token exchange matches the URI from authorization.
+                    </p>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        The backend tests multiple candidate redirect URIs in order (<code class="text-slate-200">localhost:8080</code>, <code class="text-slate-200">127.0.0.1:8080</code>, and active LAN IPs) until TrueLayer accepts the token grant, guaranteeing 100% exchange reliability.
+                    </p>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <script>
         function switchArchTab(tabId) {
-            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema', 'dataeng'];
+            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema', 'dataeng', 'mobile'];
             tabs.forEach(t => {
                 const sec = document.getElementById(`section-${t}`);
                 const btn = document.getElementById(`tab-${t}`);

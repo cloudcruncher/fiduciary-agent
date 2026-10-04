@@ -2,7 +2,7 @@
 Standalone Web Walkthrough & System Guide for Personal Fiduciary Financial Harness.
 """
 
-GUIDE_HTML = """<!DOCTYPE html>
+GUIDE_HTML = r"""<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -331,6 +331,65 @@ GUIDE_HTML = """<!DOCTYPE html>
                         </p>
                     </div>
                 </div>
+                <!-- Module 9 -->
+                <div class="guide-card space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-bold text-slate-100">
+                            <span class="text-lg">📱</span>
+                            <span>Mobile Banking &amp; Biometric FaceID</span>
+                        </div>
+                        <span class="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">Local LAN + PWA</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed">
+                        Control your finances on your phone while your Mac handles heavy local AI and database storage. Connect UK banks (Lloyds, Revolut, Chase) with native biometric FaceID/TouchID directly from your phone.
+                    </p>
+                    <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
+                        <div class="font-semibold text-emerald-300 text-[11px]">1-Tap Clipboard Handoff:</div>
+                        <p class="text-[11px] text-slate-400">
+                            When redirected after bank login, tap <strong>"📋 Paste from Clipboard &amp; Connect"</strong> in the mobile header banner. It extracts the authorization code and completes the exchange instantly.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Module 10 -->
+                <div class="guide-card space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-bold text-slate-100">
+                            <span class="text-lg">🔬</span>
+                            <span>Lead Data Engineering &amp; Audit</span>
+                        </div>
+                        <span class="text-[10px] text-cyan-400 font-semibold px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800">Double-Entry Invariant</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed">
+                        Strict institutional reconciliation: every ingested PDF/CSV statement must verify: <code class="text-slate-200">Opening + Inflows - Outflows ≡ Closing</code>. Batches are marked <code>RECONCILED</code> only if discrepancy is exactly £0.00.
+                    </p>
+                    <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
+                        <div class="font-semibold text-cyan-300 text-[11px]">Real-World Parsing Resilience:</div>
+                        <p class="text-[11px] text-slate-400">
+                            Handles same-day date propagation, multi-line narrative accumulation, running balance delta signing, and SHA-256 batch cryptographic fingerprinting for idempotent de-duplication.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Module 11 -->
+                <div class="guide-card space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-bold text-slate-100">
+                            <span class="text-lg">💳</span>
+                            <span>Credit Affordability Engine (FCA MCOB 11)</span>
+                        </div>
+                        <span class="text-[10px] text-indigo-400 font-semibold px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800">Underwriter Model</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed">
+                        UK mortgage lenders evaluate Open Banking cash-flow affordability over CRA bureau scores alone. Computes Uncommitted Monthly Income (UMI), Contractual DTI, and 90-day risk radar for BNPL (Klarna/Clearpay) and bounced direct debits.
+                    </p>
+                    <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
+                        <div class="font-semibold text-indigo-300 text-[11px]">4.5x Mortgage Stress Testing:</div>
+                        <p class="text-[11px] text-slate-400">
+                            Simulates borrowing capacity under Bank of England 7.5% stress testing, emergency £1,500 repair shocks, and comfortable vs survival runway.
+                        </p>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -353,6 +412,21 @@ GUIDE_HTML = """<!DOCTYPE html>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                            <tr>
+                                <td class="py-3 font-medium text-rose-300">"Mobile banking app redirected to localhost and failed"</td>
+                                <td class="py-3 text-slate-400">UK Open Banking OAuth requires strict pre-registered redirect URIs (<code>http://localhost:8080/truelayer/callback</code>), unroutable on mobile phones.</td>
+                                <td class="py-3 text-emerald-300">Built multi-candidate URI matching and 1-tap clipboard regex parser (<code>📋 Paste from Clipboard &amp; Connect</code>) and terminal ASCII QR code pairing.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 font-medium text-rose-300">"NatWest PDF statements missing transactions or amounts"</td>
+                                <td class="py-3 text-slate-400">NatWest omits repeated dates on same-day rows, wraps narratives across 3 lines, and omits explicit debit minus signs.</td>
+                                <td class="py-3 text-emerald-300">Stateful date propagation, multi-line narrative buffering, and running balance delta calculation ($\Delta = B_i - B_{i-1}$) achieving exact £0.00 closed-loop balance reconciliation.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 font-medium text-rose-300">"Duplicate transactions when re-importing statements"</td>
+                                <td class="py-3 text-slate-400">Downloading overlapping monthly statements (e.g. May-Jun and Jun-Jul) caused duplicate database rows.</td>
+                                <td class="py-3 text-emerald-300">Deterministic SHA-256 batch provenance and cryptographic content key upsert (<code>tx_&lt;sha256&gt;</code>), ensuring 100% idempotent deduplication.</td>
+                            </tr>
                             <tr>
                                 <td class="py-3 font-medium text-rose-300">"Is it making things up like bills due?"</td>
                                 <td class="py-3 text-slate-400">Previous logic rolled historical transactions forward forever and lacked word boundaries (e.g. matching "ee" inside "queens").</td>
