@@ -120,7 +120,7 @@ Produce a comprehensive, rigorous, and highly articulate Private Wealth Advisory
 
 ### 1. Executive Fiduciary Diagnosis & Liquidity Warning
 - Address their current cash position (£{state.get('gbp_total_balance', 0.0):,.2f}) vs daily burn rate (£{daily_burn:,.2f}/day), emphasizing that they have only **{runway_days:.1f} days of liquid runway** on hand.
-- Analyze the detected funding habit: explain why manually topping up £100 every 4-5 days from 'SAINI R & L' creates unnecessary cognitive friction, stress, and vulnerability to declined card transactions or accidental overdraft.
+- Analyze the detected funding habit: explain why manually topping up £100 every 4-5 days from an external account creates unnecessary cognitive friction, stress, and vulnerability to declined card transactions or accidental overdraft.
 
 ### 2. 30-Day Spending & Lifestyle Audit (Where Every Pound Went)
 - Provide a clear diagnostic breakdown of their £{living_spend:,.2f} living expenses (Dining ~38%, Groceries ~33%, Subscriptions ~3%).

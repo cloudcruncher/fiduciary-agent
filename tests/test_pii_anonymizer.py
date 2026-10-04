@@ -16,10 +16,10 @@ def test_pii_anonymizer_sort_code_and_account():
 
 
 def test_pii_anonymizer_email_and_phone():
-    raw = "Contact robin.saini@example.co.uk or call +44 7123 456789 for queries."
+    raw = "Contact alex.smith@example.co.uk or call +44 7123 456789 for queries."
     anonymized, mapping = PIIAnonymizer.anonymize(raw)
 
-    assert "robin.saini@example.co.uk" not in anonymized
+    assert "alex.smith@example.co.uk" not in anonymized
     assert "+44 7123 456789" not in anonymized
     assert "[EMAIL_1]" in anonymized
     assert "[PHONE_1]" in anonymized

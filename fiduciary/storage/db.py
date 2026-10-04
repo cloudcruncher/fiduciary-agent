@@ -327,7 +327,7 @@ def classify_transaction(name: str, desc: str, raw_cat: str, amt: float) -> str:
         return "Subscriptions & Software"
     if any(k in text for k in ["fee", "assets fee", "charge", "interest"]):
         return "Fees & Charges"
-    if any(k in text for k in ["cheddar", "transfer", "remittance", "inr", "wise", "revolut", "topup", "robin saini"]):
+    if any(k in text for k in ["cheddar", "transfer", "remittance", "inr", "wise", "revolut", "topup", "own account"]):
         return "Transfers & Remittance"
     if any(k in text for k in ["tram", "tfl", "train", "uber", "transport", "rail"]):
         return "Transport & Commute"
@@ -710,7 +710,7 @@ def get_transaction_analytics(days: int = 30) -> Dict[str, Any]:
         if amt > 0:
             total_inflows += amt
             inflow_count += 1
-            if any(k in name.lower() for k in ["topup", "payment from", "saini"]):
+            if any(k in name.lower() for k in ["topup", "payment from", "transfer from"]):
                 clean_source = name.replace("OBA topup from ", "").replace("Payment from ", "").strip()
                 funding_sources[clean_source]["total"] += amt
                 funding_sources[clean_source]["count"] += 1

@@ -31,7 +31,28 @@ Unlike mainstream fintech apps that sell your financial habits to third-party da
 
 ---
 
-## ⚡ 60-Second Quickstart (100% Local, Zero Real Data Needed)
+## 🚀 1-Line Instant Launch (Zero-Clone Options)
+
+Run the fiduciary engine immediately without manual cloning or environment configuration:
+
+### Option A: `uv` 1-Liner (Native Zero-Install Execution)
+```bash
+# Launch interactive local web dashboard directly on http://localhost:8080
+uvx --from "git+https://github.com/cloudcruncher/fiduciary-agent" fiduciary ui
+
+# Or run the cinematic terminal walkthrough
+uvx --from "git+https://github.com/cloudcruncher/fiduciary-agent" fiduciary demo
+```
+
+### Option B: Docker Container 1-Liner (Zero-Python Environment)
+```bash
+# Pull and run pre-built container from GitHub Container Registry
+docker run -d -p 8080:8080 -v $(pwd)/data:/app/data --name fiduciary ghcr.io/cloudcruncher/fiduciary-agent:latest
+```
+
+---
+
+## ⚡ 60-Second Quickstart (Local Git Clone)
 
 Anyone can clone and run this harness locally in under a minute without needing real bank accounts or API keys:
 
@@ -401,6 +422,12 @@ Interactive architectural diagrams, sequence flows, grounding guardrails, and da
 - 🎬 **[Programmatic Explainer Video & Narration](docs/explain/video/)**
 - Local System Tour and Module Guide: `http://localhost:8080/guide`.
 - Local Interactive Architecture: `http://localhost:8080/architecture`.
+
+---
+
+## 🤖 Authorship & Agentic Engineering
+
+This project was autonomously designed, coded, verified, and documented by **Gemini 3.8 Flash** operating via the **Google Antigravity CLI (`agy`)**. Claude Code was not substantially used in the development of this codebase.
 
 ---
 
