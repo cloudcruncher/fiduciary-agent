@@ -5,7 +5,9 @@
 [![Linter: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Privacy: 100% Air-Gapped Local](https://img.shields.io/badge/Privacy-100%25%20Air--Gapped%20Local-emerald.svg)](#-privacy-fiduciary-contract--air-gap-guarantees)
 [![Open Banking: UK Regulated](https://img.shields.io/badge/Open%20Banking-TrueLayer%20%7C%20Wise-blueviolet.svg)](#-connecting-real-uk-banks)
-[![Tests: 81 Passed](https://img.shields.io/badge/Tests-81%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
+[![MCP: Model Context Protocol](https://img.shields.io/badge/MCP-Gateway%20%26%207%20Tools-blue.svg)](#-model-context-protocol-mcp-gateway)
+[![Security: Prompt Guard](https://img.shields.io/badge/Security-Prompt%20Guard%20Active-crimson.svg)](#-prompt-guard-injection--jailbreak-defense)
+[![Tests: 98 Passed](https://img.shields.io/badge/Tests-98%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
 [![Mobile: PWA & FaceID](https://img.shields.io/badge/Mobile-PWA%20%26%20FaceID-indigo.svg)](#3-mobile-phone-banking--biometric-faceid-linking-zero-egress-lan-architecture)
 [![Architecture: Interactive Map](https://img.shields.io/badge/Architecture-Interactive%20Live%20Map-teal.svg)](https://cloudcruncher.github.io/fiduciary-agent/)
 
@@ -249,7 +251,16 @@ AI_GATEWAY_API_KEY="sk-..."                 # Optional gateway bearer token
 AI_GATEWAY_MODEL="qwen3.5:4b"              # Target model / alias routed by proxy
 ```
 
-### Gateway Architecture & Invariant Grounding Guardrails:
+### Gateway Architecture & Model Allocation (`litellm_config.yaml`):
+
+The harness maps dedicated models and aliases to maintain separation of concerns:
+
+| Gateway Alias | Target Engine | Purpose & Function | Privacy Mode |
+| :--- | :--- | :--- | :--- |
+| **`copilot`**, **`default`** | `ollama_chat/qwen3.5:4b` | High-speed conversational financial analyst, transaction retriever, and runway auditor | 100% Private (Local Metal GPU) |
+| **`evaluator`**, **`judge`** | `ollama_chat/llama3.2:3b` | Independent Layer 2 LLM-as-a-Judge critic scoring faithfulness and precision | 100% Private (Local Metal GPU) |
+| **`gemini-2.5-flash`** | `gemini/gemini-2.5-flash` | Cloud fallback for deep multi-year tax planning or complex long-context reasoning | Isolated Fallback Only |
+
 1. **Intelligent Centralized Routing**: Route requests through enterprise proxy layers for rate-limiting, cost tracking, semantic caching, and dynamic failovers.
 2. **Domain-Specific Grounding Invariant**: Generic AI gateways provide generic moderation or regex PII scrubbing, but cannot validate financial ground truth. The harness's **`GroundingAuditor` remains active after gateway response generation**, auditing every cited £ balance, percentage yield, and runway day against deterministic Python calculations before presentation.
 3. **Full Telemetry & Observability**: Latency, tool execution metrics, and audit verdicts are recorded to the local `llm_traces` SQLite database and inspectable via `./f traces` or the Web Dashboard.
@@ -257,12 +268,62 @@ AI_GATEWAY_MODEL="qwen3.5:4b"              # Target model / alias routed by prox
 
 ---
 
+## 🔌 Model Context Protocol (MCP) Gateway
+
+The harness features a standards-compliant **Model Context Protocol (MCP) Gateway** ([`fiduciary/agent/mcp_gateway.py`](fiduciary/agent/mcp_gateway.py)) that connects external LLM agents, local IDEs, and the Fiduciary Copilot to live UK market intelligence and deterministic calculations.
+
+### Standardized MCP Tool Catalog:
+
+| Tool Name | Type | Speed | Source | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **`fetch_boe_base_rate`** | Web Scraper | < 200ms | Bank of England Live | Scrapes official Bank Rate directly from bankofengland.co.uk |
+| **`fetch_top_savings_and_isas`** | Benchmark Engine | < 1ms | FSCS / UK Market | Returns market-leading Cash ISAs (4.87%) & Regular Savers (7.00%) |
+| **`search_web_instant`** | Search API | < 250ms | DuckDuckGo Instant | Real-time definitions, UK statutory allowances, and market facts |
+| **`query_spending_and_transactions`** | Deterministic Engine | < 5ms | SQLite `financial.db` | Exact client spend by category (groceries, pubs, etc.) or merchant |
+| **`credit_affordability_audit`** | Underwriter Engine | < 25ms | FCA MCOB 11 | Underwriter UMI, DTI, BNPL risk scan, and mortgage stress test |
+| **`tax_wealth_audit`** | Tax Engine | < 1ms | HMRC Tax Rules | UK tax band, marginal rates, 60% allowance trap, and SIPP relief |
+| **`financial_watchdog_audit`** | Cashflow Engine | < 15ms | Watchdog Profiler | Active recurring bills, price hikes, duplicate charges, 14d runway |
+
+### HTTP MCP Endpoints:
+- **`GET /api/mcp/tools`**: Returns standardized JSON schemas for all tools compatible with Claude, Cursor, and MCP clients.
+- **`POST /api/mcp/execute`**: Executes an MCP tool dynamically with sub-millisecond latency tracking and execution observability:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/mcp/execute \
+    -H "Content-Type: application/json" \
+    -d '{"tool_name": "fetch_boe_base_rate", "arguments": {"timeout": 2.0}}'
+  ```
+
+---
+
+## 🛡️ Prompt Guard: Injection & Malicious Intent Defense
+
+To protect private financial databases and prevent adversarial jailbreaks, all incoming user queries pass through **Prompt Guard** ([`fiduciary/agent/prompt_guard.py`](fiduciary/agent/prompt_guard.py)) before reaching any model:
+
+1. **System Override Neutralization**: Blocks patterns like `ignore all previous instructions`, `disregard prior system directives`, `bypass safety protocols`.
+2. **Jailbreak & Roleplay Defense**: Defends against `DAN mode`, `act as unrestricted AI`, role-hijacking, and canary probes like `output 'HACKED'`.
+3. **Delimiter & Control Token Stripping**: Strips ChatML/Llama boundary tokens (`<|im_start|>`, `[INST]`, `=== END SYSTEM PROMPT ===`).
+4. **Exfiltration Scanner**: Blocks unauthorized SQL injection probes (`drop table`, `delete from`) and secret key probes (`print api keys`).
+5. **Context Boundary Wrapping**: Encloses verified client telemetry inside `<verified_financial_context>` tags so user queries can never impersonate database ground truth.
+
+---
+
+## 🎯 Zero-Refusal Grounded Fiduciary Copilot
+
+Small instruction-tuned models (`qwen3.5:4b`, `llama3.2:3b`) often suffer from RLHF safety reflexes—refusing financial inquiries with canned disclaimers like *"I cannot provide financial advice as an AI..."*
+
+The harness solves this through **Deterministic Pre-Calculation + Anti-Refusal Framing**:
+- **Compliance Re-Framing**: The model is explicitly framed as an authorized on-device analytical copilot reporting ground-truth telemetry, with a strict directive: *NEVER output disclaimers like "I cannot provide financial advice" when reporting verified figures.*
+- **Pre-Calculated Emergency Fund Math**: When asked *"What is my emergency fund buffer?"*, the exact 3-month target (£8,263.80), liquid capital (£7,462.12), shortfall (£801.68), and runway (81.3 days vs 90 days recommended) are pre-injected into the prompt.
+- **Whole-of-Wealth Balance Sheet**: Accurate net worth asset and liability breakdowns are pre-assembled from the multi-asset database, eliminating arithmetic hallucinations.
+
+---
+
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (81 tests) and automated CI pipeline:
+The repository includes a comprehensive test suite (**98 tests**) and automated CI pipeline:
 
 ```bash
-# Run full unit and integration test suite
+# Run full unit and integration test suite (98 tests across storage, agents, MCP, and security)
 uv run pytest --verbose
 
 # Run ultra-fast Ruff linter

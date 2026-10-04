@@ -294,30 +294,33 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor User as User (Query)
+    participant Guard as PromptGuard (0ms Filter)
     participant Copilot as AICopilotEngine
-    participant WebTools as Zero-Overhead Web Tools (&lt;250ms)
+    participant MCP as MCP Gateway (7 Standard Tools)
     participant DB as SQLite (financial.db)
     participant PythonCore as Deterministic Profiler &amp; Watchdog
     participant Ollama as Local Ollama (:11434 / Metal GPU)
     participant Guardrail as GroundingAuditor
     participant Tracer as Observability Tracer
 
-    User->>Copilot: "What is the best Cash ISA right now and what is the BoE rate?"
-    Copilot->>WebTools: get_live_web_context_with_tools(query)
-    WebTools-->>Copilot: Injected Data + Tool Telemetry (fetch_boe_base_rate, fetch_top_savings_and_isas)
+    User->>Guard: "What is my emergency fund buffer?"
+    Guard->>Guard: Inspect for injection, DAN jailbreaks, delimiter tokens
+    Guard-->>Copilot: Sanitized Query (is_safe: true, risk: 0.0)
+    Copilot->>MCP: resolve_and_ground(query)
+    MCP-->>Copilot: Grounded Market Benchmarks &amp; BoE Data
     Copilot->>DB: Fetch Accounts, 30d Transactions, Bills
     DB-->>PythonCore: Raw Financial Records
-    PythonCore->>PythonCore: Compute exact metrics:<br/>• Liquid Cash: £7,455.73<br/>• Daily Burn: £24.85/day<br/>• Runway: 300 Days
-    PythonCore-->>Copilot: Deterministic Context
-    Copilot->>Copilot: Track Executed Tools (web + db + watchdog)
+    PythonCore->>PythonCore: Compute exact metrics:<br/>• Target Buffer: £8,263.80<br/>• Liquid Capital: £7,462.12<br/>• Runway: 81.3 Days (£801.68 Shortfall)
+    PythonCore-->>Copilot: Pre-calculated Ground Truth
+    Copilot->>Copilot: Wrap context in &lt;verified_financial_context&gt;<br/>Apply anti-refusal system directives
     Copilot->>Ollama: POST /api/chat (model: qwen3.5:4b, think: false, keep_alive: 0)
-    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>think: false eliminates 800+ reasoning tokens.<br/>Total latency ~1.2s.
+    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>Zero RLHF refusal; exact math output.<br/>Total latency ~1.2s.
     Ollama-->>Copilot: Grounded Natural Language Response
     Copilot->>Guardrail: audit(response, system_prompt)
-    Guardrail->>Guardrail: Validate 4.87%, 3.75%, £7,455.73 against ground truth
+    Guardrail->>Guardrail: Validate £8,263.80, £7,462.12, 81.3 days against ground truth
     Guardrail-->>Tracer: Status: VERIFIED_GROUNDED (Score: 1.0)
     Tracer->>DB: INSERT INTO llm_traces (includes tools_used_json)
-    Copilot-->>User: Grounded Fiduciary Advice &amp; Safety Rating
+    Copilot-->>User: Grounded Fiduciary Output &amp; Zero Refusal
                         </pre>
                     </div>
                 </div>

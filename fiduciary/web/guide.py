@@ -390,6 +390,46 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                         </p>
                     </div>
                 </div>
+
+                <!-- Module 12 -->
+                <div class="guide-card space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-bold text-slate-100">
+                            <span class="text-lg">🔌</span>
+                            <span>Model Context Protocol (MCP) Gateway</span>
+                        </div>
+                        <span class="text-[10px] text-blue-400 font-semibold px-2 py-0.5 rounded bg-blue-950 border border-blue-800">MCP Standards</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed">
+                        Exposes 7 standardized tools with JSON schemas, live web grounding (official Bank of England base rate scraping, DuckDuckGo Knowledge API), and deterministic SQLite financial aggregations with sub-millisecond execution telemetry.
+                    </p>
+                    <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
+                        <div class="font-semibold text-blue-300 text-[11px]">HTTP Endpoints:</div>
+                        <p class="text-[11px] text-slate-400">
+                            Inspect tool schemas via <code>GET /api/mcp/tools</code> or execute tools dynamically via <code>POST /api/mcp/execute</code>. Fully compatible with external agents and IDEs.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Module 13 -->
+                <div class="guide-card space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-bold text-slate-100">
+                            <span class="text-lg">🛡️</span>
+                            <span>Prompt Guard &amp; Zero-Refusal Copilot</span>
+                        </div>
+                        <span class="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">Defense &amp; Precision</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed">
+                        Pre-inference security engine detecting system overrides, jailbreaks (DAN mode), delimiter escapes, and data exfiltration in 0ms. Context is wrapped in <code>&lt;verified_financial_context&gt;</code>, and anti-refusal system directives eliminate RLHF disclaimers on emergency buffers and net worth.
+                    </p>
+                    <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
+                        <div class="font-semibold text-emerald-300 text-[11px]">Deterministic Safety:</div>
+                        <p class="text-[11px] text-slate-400">
+                            Answers tricky emergency fund questions with exact £8,263.80 target, £7,462.12 liquid capital, £801.68 shortfall, and 81.3-day runway down to the penny.
+                        </p>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -481,6 +521,16 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                                 <td class="py-3 font-medium text-rose-300">"How did it get 7% First Direct or BoE rate? Is it making up web facts?"</td>
                                 <td class="py-3 text-slate-400">User had no visibility into whether financial figures originated from live market tools or LLM hallucinations.</td>
                                 <td class="py-3 text-emerald-300">Engineered a Tool Execution &amp; Provenance Tracker logging exact tool calls, latencies, and sources into <code>llm_traces</code>. Inspectable via <code>./f tools</code> and the UI Traces modal.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 font-medium text-rose-300">"Copilot refused with 'I cannot provide financial advice' on emergency buffer"</td>
+                                <td class="py-3 text-slate-400">Small SLM RLHF safety heads triggered canned disclaimers when asked about emergency funds under 'Financial Planner' framing.</td>
+                                <td class="py-3 text-emerald-300">Reframed system prompt as private analytical engine with strict anti-refusal directive. Pre-injected exact £8,263.80 target, £7,462.12 liquid capital, £801.68 shortfall, and 81.3-day runway.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 font-medium text-rose-300">"Risk of prompt injection, DAN jailbreaks, or exfiltration"</td>
+                                <td class="py-3 text-slate-400">Natural language input could attempt delimiter breakouts (<code>&lt;|im_start|&gt;</code>), instruction overrides, or SQL injection.</td>
+                                <td class="py-3 text-emerald-300">Implemented pre-inference <code>PromptGuard</code> blocking injections in 0ms, neutralizing boundary tokens, and enclosing context in <code>&lt;verified_financial_context&gt;</code>.</td>
                             </tr>
                         </tbody>
                     </table>
