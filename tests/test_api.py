@@ -154,6 +154,14 @@ def test_api_routes():
     assert res_exchange.status_code == 200
     assert "error" in res_exchange.json() or "status" in res_exchange.json()
 
+    # 23b. TrueLayer manual exchange with full callback URL
+    res_url_exchange = client.post(
+        "/api/truelayer/exchange",
+        json={"code": "http://localhost:8080/truelayer/callback?code=fake_url_extracted_code&state=123"}
+    )
+    assert res_url_exchange.status_code == 200
+    assert "error" in res_url_exchange.json() or "status" in res_url_exchange.json()
+
     # 24. Statement batches & closed-loop provenance endpoint
     res_batches = client.get("/api/batches")
     assert res_batches.status_code == 200

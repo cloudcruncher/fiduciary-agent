@@ -156,11 +156,40 @@ DASHBOARD_HTML = """
                 <button onclick="openAIModelModal(); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-purple-300 font-semibold border border-slate-750 flex items-center space-x-1.5">
                     <span>⚙️</span><span>AI Engine Switch</span>
                 </button>
+                <button onclick="pasteAndLinkFromClipboard('banner-manual-code', 'banner-manual-status'); toggleMobileMenu();" class="p-2 bg-emerald-950/60 hover:bg-emerald-900 text-left rounded-lg text-emerald-300 font-semibold border border-emerald-800 flex items-center space-x-1.5 col-span-2">
+                    <span>📋</span><span>Paste &amp; Finish Bank Linking (Lloyds / Revolut)</span>
+                </button>
             </div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-3 sm:px-6 mt-4 sm:mt-6 space-y-4 sm:space-y-6">
+
+        <!-- Mobile Bank Handoff / Quick Link Helper Banner -->
+        <div id="mobile-handoff-banner" class="card bg-gradient-to-r from-blue-950/90 via-indigo-950/80 to-slate-900 border border-indigo-500/40 p-3 sm:p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-xl">📲</span>
+                    <div>
+                        <h3 class="font-bold text-xs sm:text-sm text-white">Complete Mobile Bank Handoff (Lloyds, Revolut, Chase)</h3>
+                        <p class="text-[10px] sm:text-[11px] text-slate-300">If your mobile bank app approved and Safari landed on an error page or <code>localhost:8080</code>:</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('mobile-handoff-banner').classList.add('hidden')" class="text-slate-400 hover:text-white text-xs p-1" title="Dismiss">✕</button>
+            </div>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-0.5">
+                <button onclick="pasteAndLinkFromClipboard('banner-manual-code', 'banner-manual-status')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 shadow transition">
+                    <span>📋 Paste from Clipboard &amp; Connect</span>
+                </button>
+                <div class="flex flex-1 items-center space-x-2">
+                    <input type="text" id="banner-manual-code" placeholder="Or paste callback URL or ?code= here..." class="flex-1 bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono text-[11px]" />
+                    <button onclick="submitBannerManualCode()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap">
+                        Link Bank
+                    </button>
+                </div>
+            </div>
+            <div id="banner-manual-status" class="text-[11px] hidden"></div>
+        </div>
 
         <!-- Executive Metrics Row (Responsive 2-Col Mobile / 4-Col Desktop) -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
@@ -1467,7 +1496,30 @@ DASHBOARD_HTML = """
                 </div>
             </div>
 
-            <!-- Option 3: Proceed anyway and paste callback code -->
+            <!-- Option 3: Already signed in on phone? Finish & Link Code -->
+            <div class="card p-3 sm:p-4 border-l-4 border-l-cyan-500 space-y-2 bg-slate-950">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-cyan-300 flex items-center space-x-1.5">
+                        <span>📲 Option 3: Already signed in on bank app?</span>
+                    </span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300 font-semibold">Instant Link</span>
+                </div>
+                <p class="text-[11px] text-slate-300">
+                    If your bank app approved and Safari landed on <code>localhost:8080</code> (or connection failed), paste the URL or tap below:
+                </p>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <button onclick="pasteAndLinkFromClipboard('tl-modal-manual-code', 'tl-modal-manual-status')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold whitespace-nowrap flex items-center justify-center space-x-1">
+                        <span>📋 Paste &amp; Link</span>
+                    </button>
+                    <input type="text" id="tl-modal-manual-code" placeholder="Paste return URL or ?code=..." class="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-[11px] text-white font-mono" />
+                    <button onclick="submitModalManualCode('tl-modal-manual-code', 'tl-modal-manual-status')" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-semibold whitespace-nowrap">
+                        Link
+                    </button>
+                </div>
+                <div id="tl-modal-manual-status" class="text-[11px] hidden"></div>
+            </div>
+
+            <!-- Footer: Proceed anyway and close -->
             <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
                 <button onclick="proceedToTrueLayerAnyway()" class="text-[11px] text-slate-400 hover:text-slate-200 underline">
                     Proceed to TrueLayer anyway →
@@ -3180,6 +3232,90 @@ DASHBOARD_HTML = """
             }
         }
 
+        async function linkAuthCode(val, statusElemId) {
+            const statusDiv = document.getElementById(statusElemId);
+            if (!val || !val.trim()) return;
+            val = val.trim();
+
+            if (statusDiv) {
+                statusDiv.className = 'text-[11px] text-cyan-400 block font-medium';
+                statusDiv.innerText = 'Exchanging authorization code with TrueLayer...';
+            }
+
+            try {
+                const res = await fetch('/api/truelayer/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: val })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if (statusDiv) {
+                        statusDiv.className = 'text-[11px] text-emerald-400 block font-semibold';
+                        statusDiv.innerText = '✅ Bank connected successfully! Refreshing dashboard...';
+                    }
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    if (statusDiv) {
+                        statusDiv.className = 'text-[11px] text-rose-400 block font-medium';
+                        statusDiv.innerText = `⚠️ Exchange failed: ${data.message || 'Invalid code'}`;
+                    }
+                }
+            } catch (err) {
+                if (statusDiv) {
+                    statusDiv.className = 'text-[11px] text-rose-400 block font-medium';
+                    statusDiv.innerText = `⚠️ Network error: ${err}`;
+                }
+            }
+        }
+
+        async function pasteAndLinkFromClipboard(inputElemId = 'banner-manual-code', statusElemId = 'banner-manual-status') {
+            const input = document.getElementById(inputElemId);
+            const statusDiv = document.getElementById(statusElemId);
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && text.trim()) {
+                    if (input) input.value = text.trim();
+                    await linkAuthCode(text.trim(), statusElemId);
+                } else {
+                    if (statusDiv) {
+                        statusDiv.className = 'text-[11px] text-amber-300 block';
+                        statusDiv.innerText = 'Clipboard is empty. Copy the URL from Safari address bar and paste here.';
+                    }
+                    if (input) input.focus();
+                }
+            } catch (err) {
+                if (statusDiv) {
+                    statusDiv.className = 'text-[11px] text-amber-300 block';
+                    statusDiv.innerText = 'Please paste your copied URL into the box and tap Link Bank.';
+                }
+                if (input) input.focus();
+            }
+        }
+
+        async function submitBannerManualCode() {
+            const input = document.getElementById('banner-manual-code');
+            if (input && input.value) {
+                await linkAuthCode(input.value, 'banner-manual-status');
+            }
+        }
+
+        async function submitModalManualCode(inputElemId, statusElemId) {
+            const input = document.getElementById(inputElemId);
+            if (input && input.value) {
+                await linkAuthCode(input.value, statusElemId);
+            }
+        }
+
+        // Auto-detect ?code= in URL on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            if (code) {
+                linkAuthCode(code, 'banner-manual-status');
+            }
+        });
+
         fetchAllState();
     </script>
 
@@ -3584,13 +3720,28 @@ def truelayer_callback(code: str, request: Request):
     client = TrueLayerClient()
     host = request.headers.get("host") or "localhost:8080"
     scheme = request.url.scheme or "http"
-    r_uri = os.getenv("REDIRECT_URL") or f"{scheme}://{host}/truelayer/callback"
+    
+    candidates = [
+        os.getenv("REDIRECT_URL") or "http://localhost:8080/truelayer/callback",
+        "http://localhost:8080/truelayer/callback",
+        f"{scheme}://{host}/truelayer/callback",
+        "http://localhost:8080/callback",
+    ]
 
-    token_data = client.exchange_code(code, redirect_uri=r_uri)
-    access_token = token_data.get("access_token")
+    access_token = None
+    for r_uri in candidates:
+        try:
+            token_data = client.exchange_code(code, redirect_uri=r_uri)
+            access_token = token_data.get("access_token")
+            if access_token:
+                break
+        except Exception:
+            continue
+
     if access_token:
         client.sync_accounts(access_token)
-    return RedirectResponse(url="/?synced=truelayer")
+        return RedirectResponse(url="/?synced=truelayer")
+    return RedirectResponse(url="/?error=truelayer_exchange_failed")
 
 
 @app.get("/callback")
@@ -3612,18 +3763,44 @@ def get_statement_batches_api():
 @app.post("/api/truelayer/exchange")
 def truelayer_manual_exchange(req: TrueLayerExchangeRequest):
     """Allows manual code entry or mobile handoff of authorization code."""
+    import re
+
+    from fiduciary.config import get_local_ip
     from fiduciary.connectors.truelayer import TrueLayerClient
 
     client = TrueLayerClient()
-    try:
-        token_data = client.exchange_code(req.code, redirect_uri=req.redirect_uri)
-        access_token = token_data.get("access_token")
-        if access_token:
-            synced = client.sync_accounts(access_token)
-            return {"status": "success", "synced": synced}
-        return {"status": "error", "message": "Failed to exchange authorization code"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    clean_code = req.code.strip()
+
+    # Extract code if user pasted a full URL or query string
+    if "code=" in clean_code:
+        match = re.search(r"code=([^&]+)", clean_code)
+        if match:
+            clean_code = match.group(1)
+
+    candidates = []
+    if req.redirect_uri:
+        candidates.append(req.redirect_uri)
+    reg_url = os.getenv("REDIRECT_URL") or "http://localhost:8080/truelayer/callback"
+    candidates.extend([
+        reg_url,
+        "http://localhost:8080/truelayer/callback",
+        f"http://{get_local_ip()}:8080/truelayer/callback",
+        "http://localhost:8080/callback",
+    ])
+
+    last_err = None
+    for r_uri in candidates:
+        try:
+            token_data = client.exchange_code(clean_code, redirect_uri=r_uri)
+            access_token = token_data.get("access_token")
+            if access_token:
+                synced = client.sync_accounts(access_token)
+                return {"status": "success", "synced": synced}
+        except Exception as e:
+            last_err = e
+            continue
+
+    return {"status": "error", "message": f"Failed to exchange authorization code: {last_err or 'Invalid code'}"}
 
 
 @app.post("/api/upload")
