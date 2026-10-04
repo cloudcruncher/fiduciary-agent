@@ -317,11 +317,11 @@ sequenceDiagram
     MCP-->>Copilot: Grounded Market Benchmarks &amp; BoE Data
     Copilot->>DB: Fetch Accounts, 30d Transactions, Bills
     DB-->>PythonCore: Raw Financial Records
-    PythonCore->>PythonCore: Compute exact metrics:<br/>• Target Buffer: £8,263.80<br/>• Liquid Capital: £7,462.12<br/>• Runway: 81.3 Days (£801.68 Shortfall)
+    PythonCore->>PythonCore: Compute exact metrics:<br/>Target Buffer: £8,263.80<br/>Liquid Capital: £7,462.12<br/>Runway: 81.3 Days (Shortfall £801.68)
     PythonCore-->>Copilot: Pre-calculated Ground Truth
-    Copilot->>Copilot: Wrap context in &lt;verified_financial_context&gt;<br/>Apply anti-refusal system directives
+    Copilot->>Copilot: Wrap context in [verified_financial_context]<br/>Apply anti-refusal system directives
     Copilot->>Ollama: POST /api/chat (model: qwen3.5:4b, think: false, keep_alive: 0)
-    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>Zero RLHF refusal; exact math output.<br/>Total latency ~1.2s.
+    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>Zero RLHF refusal, exact math output.<br/>Total latency ~1.2s.
     Ollama-->>Copilot: Grounded Natural Language Response
     Copilot->>Guardrail: audit(response, system_prompt)
     Guardrail->>Guardrail: Validate £8,263.80, £7,462.12, 81.3 days against ground truth

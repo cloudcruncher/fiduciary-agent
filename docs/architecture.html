@@ -132,6 +132,9 @@
             <button onclick="switchArchTab('mobile')" id="tab-mobile" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
                 7. Mobile Phone Linking &amp; Biometric OAuth Handoff
             </button>
+            <button onclick="switchArchTab('enterprise')" id="tab-enterprise" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
+                8. Enterprise ReAct, PII Anonymizer &amp; Vector RAG
+            </button>
         </div>
 
         <!-- TAB 1: SYSTEM TOPOLOGY DIAGRAM -->
@@ -182,22 +185,26 @@ flowchart TB
         NW --> CTX
         CREDIT --> CTX
 
-        WEB["Zero-Overhead Web Tools (&lt;250ms)<br/>• Live BoE Base Rate (3.75%)<br/>• Top Cash ISA (4.87%) &amp; Regular Saver (7.00%)<br/>• DuckDuckGo Knowledge API"] --> CTX
+        WEB["Multi-Tier Web Knowledge Engine<br/>• Tier 1: Statutory HMRC Schedules<br/>• Tier 2: Google Search / Serper API<br/>• Tier 3: Live UK Organic Web Search"] --> CTX
+        VRAG["Local Semantic Vector RAG<br/>• Statutory HMRC Rules (ISA, SIPP, CGT)<br/>• FCA MCOB 11 Guidelines<br/>• Cosine Similarity (TF-IDF weighted)"] --> CTX
         WEB --> TOOL_OBS["Tool Execution Tracker<br/>• Latency (ms), URL/Source, Payload<br/>• tools_used_json stored in trace"]
+        VRAG --> TOOL_OBS
         TOOL_OBS --> TRACE
 
         CTX --> PROMPT["Grounded Dynamic Prompt<br/>(Pruned context: ~300 tokens)"]
         DB --> TXR["Itemised Transaction Retriever<br/>• Bank filter (revolut / wise / natwest)<br/>• 'last N' count detection<br/>• Numbered newest-first rows"]
         TXR --> PROMPT
-        
-        PROMPT --> LLM_CLIENT["Unified LLM Client"]
+
+        PROMPT --> PII_ANON["Reversible PII Anonymizer<br/>• Sort Codes: [SORT_CODE_1]<br/>• Account Nums: [ACCOUNT_NUM_1]<br/>• Lossless Roundtrip Deanonymization"]
+        PII_ANON --> LLM_CLIENT["Unified LLM Client"]
         
         LLM_CLIENT -->|"Primary Default (100% Offline)"| OLLAMA["Ollama Local Engine (:11434)<br/>(qwen3.5:4b / llama3.2 on Metal GPU)<br/>• think: false (Sub-second)<br/>• keep_alive: 0 (Zero RAM leak)"]
         LLM_CLIENT -.->|"Alternative Local"| LMSTUDIO["LM Studio Local Endpoint (:1234)<br/>(Meta-Llama-3.1-8B)"]
         LLM_CLIENT -.->|"Enterprise AI Gateway (Opt-in)"| GATEWAY["AI Gateway / LiteLLM Proxy (:4000)<br/>(OpenAI-compatible router &amp; cache)"]
         LLM_CLIENT -.->|"Dormant Adapter (Opt-in only)"| GEMINI["Google Gemini Cloud API<br/>(Zero egress by default)"]
 
-        OLLAMA --> AUDIT["Layer 1: Grounding Auditor<br/>• Extracts all £, %, days<br/>• Validates against Prompt Context<br/>• Flags Unverified Claims"]
+        OLLAMA --> REACT["Autonomous ReAct Agent Engine<br/>• Thought → Action → Observation<br/>• Dynamic MCP Tool Calling<br/>• Max 4 steps safety ceiling"]
+        REACT --> AUDIT["Layer 1: Grounding Auditor<br/>• Extracts all £, %, days<br/>• Validates against Prompt Context<br/>• Flags Unverified Claims"]
         LMSTUDIO -.-> AUDIT
         GATEWAY -.-> AUDIT
         GEMINI -.-> AUDIT
@@ -213,7 +220,7 @@ flowchart TB
 
         FASTAPI --> MACAPP["Native macOS App<br/>(/Applications/Fiduciary.app)"]
         FASTAPI --> BROWSER["Local Web Dashboard<br/>(http://localhost:8080)<br/>• Live Transactions tab<br/>• Credit &amp; Borrowing tab<br/>• Traces modal"]
-        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f tx -a revolut -n 5, ./f credit, ./f copilot, ./f judge)"]
+        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f react, ./f rag, ./f copilot --react, ./f tx, ./f judge)"]
     end
 
     style INGESTION fill:#064e3b,stroke:#059669,stroke-width:2px,color:#ecfdf5
@@ -310,11 +317,11 @@ sequenceDiagram
     MCP-->>Copilot: Grounded Market Benchmarks &amp; BoE Data
     Copilot->>DB: Fetch Accounts, 30d Transactions, Bills
     DB-->>PythonCore: Raw Financial Records
-    PythonCore->>PythonCore: Compute exact metrics:<br/>• Target Buffer: £8,263.80<br/>• Liquid Capital: £7,462.12<br/>• Runway: 81.3 Days (£801.68 Shortfall)
+    PythonCore->>PythonCore: Compute exact metrics:<br/>Target Buffer: £8,263.80<br/>Liquid Capital: £7,462.12<br/>Runway: 81.3 Days (Shortfall £801.68)
     PythonCore-->>Copilot: Pre-calculated Ground Truth
-    Copilot->>Copilot: Wrap context in &lt;verified_financial_context&gt;<br/>Apply anti-refusal system directives
+    Copilot->>Copilot: Wrap context in [verified_financial_context]<br/>Apply anti-refusal system directives
     Copilot->>Ollama: POST /api/chat (model: qwen3.5:4b, think: false, keep_alive: 0)
-    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>Zero RLHF refusal; exact math output.<br/>Total latency ~1.2s.
+    Note over Ollama: 100% On-Device Offline Inference on Metal GPU.<br/>Zero RLHF refusal, exact math output.<br/>Total latency ~1.2s.
     Ollama-->>Copilot: Grounded Natural Language Response
     Copilot->>Guardrail: audit(response, system_prompt)
     Guardrail->>Guardrail: Validate £8,263.80, £7,462.12, 81.3 days against ground truth
@@ -942,11 +949,123 @@ sequenceDiagram
             </div>
         </div>
 
+        <!-- TAB 8: ENTERPRISE AGENTIC ARCHITECTURE: REACT, PII ANONYMIZER & VECTOR RAG -->
+        <div id="section-enterprise" class="hidden space-y-6">
+            <div class="card space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Enterprise Agentic Core: ReAct, PII Anonymizer &amp; Local Vector RAG</h3>
+                        <p class="text-xs text-slate-400">Autonomous reasoning loop, cryptographic privacy boundaries, and embedded semantic knowledge retrieval</p>
+                    </div>
+                    <span class="text-xs text-slate-500 font-mono">Agentic Workflow</span>
+                </div>
+
+                <!-- Sequence Diagram: ReAct + PII + Vector RAG -->
+                <div class="space-y-2">
+                    <h4 class="font-bold text-xs text-emerald-400 uppercase tracking-wider">A. Autonomous ReAct Reasoning &amp; PII Lifecycle</h4>
+                    <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
+                        <pre class="mermaid text-xs">
+sequenceDiagram
+    autonumber
+    actor User as Client Query
+    participant Guard as Prompt Guard
+    participant Anon as PII Anonymizer
+    participant ReAct as ReAct Agent Engine
+    participant MCP as MCP Tool Gateway
+    participant RAG as Local Vector RAG
+    participant LLM as Local Qwen 3.5 4B (Metal GPU)
+    participant Tracer as Observability Tracer
+
+    User->>Guard: "Check my grocery spend and ISA allowance for Sort Code 20-45-78"
+    Guard->>Guard: Scan injection &amp; delimiters (PASS)
+    Guard->>Anon: Sanitize &amp; inspect PII
+    Anon->>Anon: Salt-indexed replace: 20-45-78 -&gt; [SORT_CODE_1]
+    Anon->>ReAct: Clean query + mapping token dict
+
+    loop ReAct Multi-Step Trajectory (Max 4 turns)
+        ReAct->>LLM: Generate Thought + Action
+        LLM--&gt;&gt;ReAct: Thought: "Need grocery spend" | Action: query_spending_and_transactions
+        ReAct->>MCP: call_tool("query_spending_and_transactions", {"query": "groceries"})
+        MCP--&gt;&gt;ReAct: Observation: £342.15 (14 transactions)
+        
+        ReAct->>LLM: Generate next Thought + Action
+        LLM--&gt;&gt;ReAct: Thought: "Need ISA allowance" | Action: vector_search_documents
+        ReAct->>RAG: search("ISA statutory allowance limit", top_k=1)
+        RAG--&gt;&gt;ReAct: Observation: £20,000 allowance, £4,000 LISA bonus
+    end
+
+    ReAct->>LLM: Synthesize Final Answer
+    LLM--&gt;&gt;ReAct: Final Answer containing [SORT_CODE_1]
+    ReAct->>Anon: deanonymize([SORT_CODE_1] -&gt; 20-45-78)
+    Anon--&gt;&gt;ReAct: Restored Grounded Answer
+    ReAct->>Tracer: Record steps, latencies &amp; tools to llm_traces
+    ReAct--&gt;&gt;User: Complete Fiduciary Verdict &amp; Guidance
+                        </pre>
+                    </div>
+                </div>
+
+                <!-- Explanatory Architecture Pillars -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs">
+                    <div class="p-3.5 bg-slate-850 rounded-xl border border-slate-800 space-y-1.5">
+                        <div class="font-bold text-emerald-400 flex items-center space-x-1.5">
+                            <span>🤖</span><span>Autonomous ReAct Loop</span>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">
+                            Executes iterative <code>Thought → Action → Observation</code> steps. Rather than single-pass guessing, the agent dynamically interrogates databases, scrapes central bank rates, and inspects spending ledgers until reaching a verified conclusion.
+                        </p>
+                    </div>
+
+                    <div class="p-3.5 bg-slate-850 rounded-xl border border-slate-800 space-y-1.5">
+                        <div class="font-bold text-cyan-400 flex items-center space-x-1.5">
+                            <span>🛡️</span><span>Cryptographic PII Shield</span>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">
+                            Sort codes, account numbers, NINOs, card numbers, emails, and phone numbers are reversibly tokenized before any model invocation. Restored losslessly on return, guaranteeing zero raw credentials ever reach model context.
+                        </p>
+                    </div>
+
+                    <div class="p-3.5 bg-slate-850 rounded-xl border border-slate-800 space-y-1.5">
+                        <div class="font-bold text-purple-400 flex items-center space-x-1.5">
+                            <span>🔍</span><span>Embedded Vector RAG</span>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">
+                            Embedded TF-IDF weighted cosine similarity index pre-seeded with HMRC ISA rules, pension schedules, CGT allowances, and FCA MCOB 11 underwriting guidelines. Operates in-process with 0 MB background daemon overhead.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Web Search Engine Routing Clarification -->
+                <div class="card space-y-3 border-l-4 border-l-amber-500">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <span>🌐</span>
+                        <span>Multi-Tier Web Knowledge Routing: Why DuckDuckGo &amp; Google?</span>
+                    </h4>
+                    <p class="text-slate-400 text-[11px] leading-relaxed">
+                        To balance 100% free offline privacy with accurate live internet intelligence, the web search engine uses an intelligent 3-tier cascade:
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] pt-1">
+                        <div class="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span class="font-bold text-emerald-400 block mb-1">Tier 1: Statutory Fast-Path</span>
+                            Instant exact HMRC allowance schedules (£20k ISA, £60k Pension, £3k CGT, PSA) in &lt;0.1ms with zero network requests.
+                        </div>
+                        <div class="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span class="font-bold text-blue-400 block mb-1">Tier 2: Google Search / Serper</span>
+                            If <code>GOOGLE_CSE_ID</code> + <code>GOOGLE_API_KEY</code> or <code>SERPER_API_KEY</code> is set, routes queries directly to Google Search with UK geolocation (<code>gl=uk</code>).
+                        </div>
+                        <div class="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span class="font-bold text-amber-400 block mb-1">Tier 3: Live Organic Web Search</span>
+                            If no API key is provided, extracts live organic snippets from GOV.UK, HMRC, and NS&amp;I via open HTML search without triggering anti-bot CAPTCHAs.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <script>
         function switchArchTab(tabId) {
-            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema', 'dataeng', 'mobile'];
+            const tabs = ['topology', 'airgap', 'deterministic', 'guardrails', 'schema', 'dataeng', 'mobile', 'enterprise'];
             tabs.forEach(t => {
                 const sec = document.getElementById(`section-${t}`);
                 const btn = document.getElementById(`tab-${t}`);
