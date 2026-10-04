@@ -155,7 +155,7 @@ class AICopilotEngine:
                 spend_block.append(f"• ITEMISED TRANSACTIONS FOR THIS SPENDING QUERY ({len(items)} records, newest first):")
                 for idx, t in enumerate(items, 1):
                     sign = "+" if float(t["amount"]) > 0 else "-"
-                    spend_block.append(f"  {idx}. Date: {t['booking_date']} | Account: {t.get('institution_name', 'Bank')} | Amount: {sign}£{abs(float(t['amount'])):,.2f} | Merchant: {t.get('counterparty_name') or t.get('description')} | Category: {t.get('category')}")
+                    spend_block.append(f"  {idx}. {t['booking_date']} | {t.get('institution_name', 'Bank')} | {sign}£{abs(float(t['amount'])):,.2f} | {t.get('counterparty_name') or t.get('description')} | {t.get('category')}")
 
             context_blocks.append("\n".join(spend_block))
 
@@ -189,7 +189,7 @@ class AICopilotEngine:
             tx_lines = [f"• VERIFIED ITEMISED TRANSACTIONS {bank_label}{days_label} ({len(recent_txs)} records shown, reverse-chronological order, 1 = newest):"]
             for idx, t in enumerate(recent_txs, 1):
                 sign = "+" if float(t["amount"]) > 0 else "-"
-                tx_lines.append(f"  {idx}. Date: {t['booking_date']} | Account: {t.get('institution_name', 'Bank')} | Amount: {sign}£{abs(float(t['amount'])):,.2f} | Merchant: {t.get('counterparty_name') or t.get('description')} | Category: {t.get('category')}")
+                tx_lines.append(f"  {idx}. {t['booking_date']} | {t.get('institution_name', 'Bank')} | {sign}£{abs(float(t['amount'])):,.2f} | {t.get('counterparty_name') or t.get('description')} | {t.get('category')}")
 
             tx_sum = p.get("transaction_30d_summary", {})
             top_merchants_str = ", ".join([f"{m['name']} (£{m['total']:.2f}, {m['count']} visits)" for m in tx_sum.get("top_merchants", [])[:6]])

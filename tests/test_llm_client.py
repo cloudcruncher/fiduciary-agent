@@ -155,3 +155,36 @@ def test_llm_generate_gateway_mocked():
         assert payload["messages"][-1]["content"] == "What is my uncommitted monthly income?"
 
 
+def test_llm_response_caching_zero_token_savings():
+    from fiduciary.storage.db import clear_llm_cache, init_db
+
+    init_db()
+    clear_llm_cache()
+
+    with patch("requests.get") as mock_get, patch("requests.post") as mock_post:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"data": [{"id": "cached-test-model"}]}
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "choices": [{"message": {"content": "Your emergency buffer is £4,500.00."}}]
+        }
+
+        client = LLMClient(provider="local")
+        prompt = "What is my emergency buffer?"
+
+        # 1. First invocation: Cache miss -> calls requests.post
+        ans1 = client.generate(prompt)
+        assert ans1 == "Your emergency buffer is £4,500.00."
+        assert mock_post.call_count == 1
+
+        # 2. Second invocation: Exact match on same DB state -> Cache HIT -> NO requests.post call!
+        ans2 = client.generate(prompt)
+        assert ans2 == "Your emergency buffer is £4,500.00."
+        assert mock_post.call_count == 1  # call count stayed at 1!
+
+        # 3. Third invocation with bypass_cache=True -> ignores cache -> calls requests.post
+        ans3 = client.generate(prompt, bypass_cache=True)
+        assert ans3 == "Your emergency buffer is £4,500.00."
+        assert mock_post.call_count == 2
+
+

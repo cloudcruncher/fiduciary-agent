@@ -160,6 +160,17 @@ def init_db():
     );
     CREATE INDEX IF NOT EXISTS idx_batch_account ON statement_batches(account_id);
     CREATE INDEX IF NOT EXISTS idx_batch_imported ON statement_batches(imported_at);
+
+    CREATE TABLE IF NOT EXISTS llm_response_cache (
+        cache_key TEXT PRIMARY KEY,
+        prompt_hash TEXT NOT NULL,
+        db_fingerprint TEXT NOT NULL,
+        response TEXT NOT NULL,
+        model TEXT NOT NULL,
+        created_at TIMESTAMP,
+        expires_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_llm_cache_lookup ON llm_response_cache(prompt_hash, db_fingerprint);
     """)
 
     # Safe column migrations on existing accounts table if upgrading
@@ -997,6 +1008,96 @@ def set_rate_cache(key: str, data: Dict[str, Any]):
     """, (key, json.dumps(data), now))
     conn.commit()
     conn.close()
+
+
+def get_db_state_fingerprint() -> str:
+    """
+    Returns a fast cryptographic fingerprint of the current financial database state.
+    Used to automatically invalidate or validate cached LLM responses when transactions
+    or balances change.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*), COALESCE(MAX(id), ''), COALESCE(MAX(booking_date), '') FROM transactions")
+        tx_row = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(current_balance), 0.0) FROM accounts")
+        acc_row = cursor.fetchone()
+        conn.close()
+        raw = f"{tx_row[0]}:{tx_row[1]}:{tx_row[2]}:{acc_row[0]}:{acc_row[1]:.2f}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        return "default_state"
+
+
+def get_cached_llm_response(prompt_hash: str, db_fingerprint: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves unexpired cached response for this exact prompt & database state.
+    Provides 0-credit, 0-token, sub-millisecond retrieval.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        now_iso = datetime.now().isoformat()
+        cursor.execute("""
+            SELECT response, model FROM llm_response_cache
+            WHERE prompt_hash = ? AND db_fingerprint = ? AND expires_at > ?
+        """, (prompt_hash, db_fingerprint, now_iso))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return {"response": row["response"], "model": row["model"]}
+    except Exception:
+        pass
+    return None
+
+
+def set_cached_llm_response(
+    prompt_hash: str,
+    db_fingerprint: str,
+    response: str,
+    model: str,
+    ttl_seconds: int = 1800
+) -> None:
+    """
+    Caches an LLM response with a time-to-live (default: 30 minutes).
+    Bound strictly to the database fingerprint so stale data is never served.
+    Never caches error messages or warnings.
+    """
+    if not response or response.startswith("⚠️") or response.startswith("❌") or "Error" in response[:30]:
+        return
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        now = datetime.now()
+        now_iso = now.isoformat()
+        expires_iso = (now + timedelta(seconds=ttl_seconds)).isoformat()
+        cache_key = f"{prompt_hash}_{db_fingerprint}"
+        cursor.execute("""
+            INSERT INTO llm_response_cache (cache_key, prompt_hash, db_fingerprint, response, model, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET
+                response = excluded.response,
+                model = excluded.model,
+                created_at = excluded.created_at,
+                expires_at = excluded.expires_at
+        """, (cache_key, prompt_hash, db_fingerprint, response, model, now_iso, expires_iso))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def clear_llm_cache() -> None:
+    """Flushes the LLM response cache."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM llm_response_cache")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 def save_oauth_tokens(
     provider: str,

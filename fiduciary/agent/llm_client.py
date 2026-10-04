@@ -253,19 +253,58 @@ class LLMClient:
         max_tokens: int = 500,
         timeout: int = 60,
         caller: str = "copilot",
-        tools_used: Optional[list] = None
+        tools_used: Optional[list] = None,
+        bypass_cache: bool = False
     ) -> str:
-        """Generates completion using the optimal local or cloud model and records observability trace."""
+        """Generates completion using the optimal local or cloud model with zero-token response caching."""
+        import hashlib
         import time
 
         from fiduciary.observability.tracer import record_llm_trace
+        from fiduciary.storage.db import (
+            get_cached_llm_response,
+            get_db_state_fingerprint,
+            set_cached_llm_response,
+        )
 
         start_t = time.perf_counter()
         status = self.get_status()
         mode = status["mode"]
         used_provider = mode
-        used_model = status.get("local_model") or "unknown"
+        used_model = status.get("local_model") or status.get("gateway_model") or self.gateway_model or "unknown"
         response_text = ""
+
+        # Response Caching Check:
+        # If model is active and cache is not bypassed, check for exact match on current DB state
+        db_fingerprint = get_db_state_fingerprint()
+        cache_raw = f"{mode}:{used_model}:{system_prompt or ''}:{prompt}"
+        prompt_hash = hashlib.sha256(cache_raw.encode("utf-8")).hexdigest()
+
+        if not bypass_cache and mode in ("local", "gemini", "gateway"):
+            cached_entry = get_cached_llm_response(prompt_hash, db_fingerprint)
+            if cached_entry:
+                cached_resp = cached_entry["response"]
+                cached_model = f"{cached_entry['model']} (cached)"
+                latency_ms = (time.perf_counter() - start_t) * 1000.0
+                cache_tool = {
+                    "tool_name": "llm_response_cache",
+                    "type": "cache_hit",
+                    "source": "SQLite llm_response_cache (0 tokens billed)",
+                    "latency_ms": round(latency_ms, 2),
+                    "status": "CACHE_HIT",
+                    "summary": "Instant cache hit: zero credit/token consumption."
+                }
+                record_llm_trace(
+                    caller=caller,
+                    provider=used_provider,
+                    model=cached_model,
+                    latency_ms=latency_ms,
+                    user_prompt=prompt,
+                    system_prompt=system_prompt,
+                    response=cached_resp,
+                    tools_used=(tools_used or []) + [cache_tool]
+                )
+                return cached_resp
 
         if mode == "local":
             local_ans = self._generate_local(
@@ -289,7 +328,7 @@ class LLMClient:
                 )
             elif self.gemini_key:
                 used_provider = "gemini"
-                used_model = "gemini-3.8-flash"
+                used_model = "gemini-2.5-flash"
                 response_text = self._generate_gemini(prompt, system_prompt, temperature)
             else:
                 prov_name = (status.get("local_provider") or "local").upper()
@@ -317,7 +356,7 @@ class LLMClient:
                 )
         elif mode == "gemini":
             used_provider = "gemini"
-            used_model = "gemini-3.8-flash"
+            used_model = "gemini-2.5-flash"
             response_text = self._generate_gemini(prompt, system_prompt, temperature)
         else:
             response_text = (
@@ -330,6 +369,15 @@ class LLMClient:
             )
 
         latency_ms = (time.perf_counter() - start_t) * 1000.0
+
+        # Cache successful response bound to current financial state
+        if response_text and not response_text.startswith("⚠️") and not response_text.startswith("❌"):
+            set_cached_llm_response(
+                prompt_hash=prompt_hash,
+                db_fingerprint=db_fingerprint,
+                response=response_text,
+                model=used_model
+            )
 
         # Record observability trace with grounding audit and tools used
         if mode in ("local", "gemini", "gateway"):
@@ -462,7 +510,12 @@ class LLMClient:
         client = genai.Client(api_key=self.gemini_key)
         full_content = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+        models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-3.8-flash",
+        ]
         last_err = None
 
         for model_name in models_to_try:
