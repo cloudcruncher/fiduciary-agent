@@ -8,6 +8,8 @@ Compatible with Model Context Protocol (MCP) standards.
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import BaseModel, Field, ValidationError
+
 from fiduciary.agent.web_tools import (
     fetch_boe_base_rate,
     fetch_top_savings_and_isas,
@@ -17,6 +19,28 @@ from fiduciary.analysis.credit_affordability import CreditAffordabilityEngine
 from fiduciary.analysis.spending import SpendingInsightEngine
 from fiduciary.analysis.tax_optimizer import UKTaxOptimizer
 from fiduciary.analysis.watchdog import FinancialWatchdog
+
+
+class BoeRateArgs(BaseModel):
+    timeout: float = Field(default=2.5, ge=0.1, le=30.0)
+
+
+class WebSearchArgs(BaseModel):
+    query: str = Field(default="", min_length=1)
+
+
+class SpendingQueryArgs(BaseModel):
+    query: str = Field(default="", min_length=0)
+    limit: int = Field(default=15, ge=1, le=100)
+
+
+class TaxWealthAuditArgs(BaseModel):
+    gross_income: float = Field(default=55000.0, ge=0.0)
+
+
+class VectorSearchArgs(BaseModel):
+    query: str = Field(default="", min_length=1)
+    top_k: int = Field(default=2, ge=1, le=20)
 
 
 class MCPGateway:
@@ -138,27 +162,27 @@ class MCPGateway:
 
         try:
             if tool_name == "fetch_boe_base_rate":
-                timeout = float(args.get("timeout", 2.5))
-                result = fetch_boe_base_rate(timeout=timeout)
+                valid_boe = BoeRateArgs.model_validate(args)
+                result = fetch_boe_base_rate(timeout=valid_boe.timeout)
 
             elif tool_name == "fetch_top_savings_and_isas":
                 result = fetch_top_savings_and_isas()
 
             elif tool_name in ("search_web_instant", "search_web_live"):
-                q = args.get("query", "")
+                valid_web = WebSearchArgs.model_validate(args)
+                q = valid_web.query
                 result = search_duckduckgo_instant(q) or {"heading": q, "abstract": "No instant summary found; refer to official HMRC/BoE guidelines."}
 
             elif tool_name == "query_spending_and_transactions":
-                q = args.get("query", "")
-                limit = int(args.get("limit", 15))
-                result = SpendingInsightEngine.query_spending(query_str=q, limit=limit)
+                valid_spending = SpendingQueryArgs.model_validate(args)
+                result = SpendingInsightEngine.query_spending(query_str=valid_spending.query, limit=valid_spending.limit)
 
             elif tool_name == "credit_affordability_audit":
                 result = CreditAffordabilityEngine.run_full_audit()
 
             elif tool_name == "tax_wealth_audit":
-                inc = float(args.get("gross_income", 55000.0))
-                result = UKTaxOptimizer.full_tax_wealth_audit(gross_income=inc, liquid_cash=7500.0)
+                valid_tax = TaxWealthAuditArgs.model_validate(args)
+                result = UKTaxOptimizer.full_tax_wealth_audit(gross_income=valid_tax.gross_income, liquid_cash=7500.0)
 
             elif tool_name == "financial_watchdog_audit":
                 wd = FinancialWatchdog()
@@ -166,14 +190,17 @@ class MCPGateway:
 
             elif tool_name == "vector_search_documents":
                 from fiduciary.agent.vector_rag import get_vector_rag
-                q = args.get("query", "")
-                k = int(args.get("top_k", 2))
+                valid_vec = VectorSearchArgs.model_validate(args)
                 rag = get_vector_rag()
-                result = rag.search(query=q, top_k=k)
+                result = rag.search(query=valid_vec.query, top_k=valid_vec.top_k)
 
             else:
                 status = "NOT_FOUND"
                 error_msg = f"Unknown tool: {tool_name}"
+        except ValidationError as ve:
+            status = "VALIDATION_ERROR"
+            error_msg = f"Invalid tool arguments: {ve.errors()}"
+            result = {"error": error_msg}
         except Exception as e:
             status = "ERROR"
             error_msg = str(e)

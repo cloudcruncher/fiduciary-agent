@@ -8,13 +8,28 @@ Emits comprehensive step-by-step telemetry and integrates reversible PII anonymi
 import json
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 from fiduciary.agent.llm_client import LLMClient
 from fiduciary.agent.mcp_gateway import MCPGateway
 from fiduciary.agent.pii_anonymizer import PIIAnonymizer
 from fiduciary.agent.prompt_guard import PromptGuard
 from fiduciary.observability.tracer import record_llm_trace
+
+
+class ReActStepPayload(BaseModel):
+    """Pydantic validated model for agent thought, action, input, and final answer."""
+    thought: str = Field(default="", description="Internal reasoning trajectory")
+    action: Optional[str] = Field(default=None, description="Tool to execute")
+    action_input: Dict[str, Any] = Field(default_factory=dict, description="Parsed and validated tool arguments")
+    final_answer: Optional[str] = Field(default=None, description="Synthesised final fiduciary answer")
+
+    def __iter__(self):
+        yield self.thought
+        yield self.action
+        yield self.action_input
 
 
 class ReActFiduciaryAgent:
@@ -210,8 +225,8 @@ class ReActFiduciaryAgent:
         }
 
     @staticmethod
-    def _parse_react_response(text: str) -> Tuple[str, Optional[str], Dict[str, Any]]:
-        """Parses Thought, Action, and Action Input from model response."""
+    def _parse_react_response(text: str) -> ReActStepPayload:
+        """Parses and validates Thought, Action, and Action Input through Pydantic."""
         thought = ""
         action = None
         action_input: Dict[str, Any] = {}
@@ -238,4 +253,8 @@ class ReActFiduciaryAgent:
                 if q_m:
                     action_input = {"query": q_m.group(1)}
 
-        return thought, action, action_input
+        return ReActStepPayload(
+            thought=thought,
+            action=action,
+            action_input=action_input
+        )

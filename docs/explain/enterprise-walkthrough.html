@@ -255,9 +255,24 @@ flowchart LR
                             <td class="py-4 px-5 text-emerald-300/90">AI Gateway Proxy (:4000) with automatic failover between local LLM instances and cloud fallback.</td>
                         </tr>
                         <tr class="hover:bg-slate-900/50 transition">
+                            <td class="py-4 px-5 font-semibold text-white">Storage & Concurrency</td>
+                            <td class="py-4 px-5 text-rose-300/90">Single-thread locked SQLite or in-memory dicts with concurrency collisions.</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Write-Ahead Logging (WAL mode), 5,000ms busy timeout, compound indexes, and session isolation.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-900/50 transition">
+                            <td class="py-4 px-5 font-semibold text-white">Agent Contracts & Validation</td>
+                            <td class="py-4 px-5 text-rose-300/90">Fragile regex string parsing of raw LLM outputs (breaks on markdown variations).</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Pydantic structured schemas (ReActStepPayload) and type-validated MCP tool arguments.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-900/50 transition">
+                            <td class="py-4 px-5 font-semibold text-white">Cloud Probes & Tracing</td>
+                            <td class="py-4 px-5 text-rose-300/90">No Kubernetes liveness probes or correlation tracking (unroutable behind load balancers).</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Kubernetes /healthz and /readyz probes, X-Request-ID correlation headers, and OWASP security middleware.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-900/50 transition">
                             <td class="py-4 px-5 font-semibold text-white">CI & Secret Safety</td>
                             <td class="py-4 px-5 text-rose-300/90">Ad-hoc scripts, manual verification, unmonitored credentials in git commits.</td>
-                            <td class="py-4 px-5 text-emerald-300/90">Pre-push Git hooks enforcing Gitleaks, Ruff linting, cold CI test suite (110 tests), and package builds.</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Pre-push Git hooks enforcing Gitleaks, Ruff linting, offline eval benchmark suite (120 tests), and wheel builds.</td>
                         </tr>
                     </tbody>
                 </table>

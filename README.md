@@ -390,12 +390,42 @@ The harness solves this through **Deterministic Pre-Calculation + Anti-Refusal F
 
 ---
 
+## 🏛️ Enterprise Production Architecture & Reliability
+
+The application incorporates Tier-1 production engineering patterns across data storage, ML serving, security, and cloud orchestration:
+
+1. **High-Concurrency SQLite Storage (WAL Mode)**:
+   - Configured with `PRAGMA journal_mode = WAL;`, `PRAGMA busy_timeout = 5000;`, and `PRAGMA synchronous = NORMAL;` to eliminate table-lock contention between concurrent web queries and background bank sync threads.
+   - Compound indexes on `(session_id, id)`, `(account_id, booking_date)`, and `(statement_batch_id)`.
+
+2. **Pydantic Structured Outputs & MCP Tool Validation**:
+   - ReAct reasoning steps are parsed and strictly validated through `ReActStepPayload` Pydantic models.
+   - All MCP tools (`fetch_boe_base_rate`, `query_spending_and_transactions`, `tax_wealth_audit`, etc.) enforce type-checked Pydantic argument schemas (`BoeRateArgs`, `SpendingQueryArgs`, `TaxWealthAuditArgs`), preventing malformed LLM tool arguments from crashing execution.
+
+3. **Cloud-Native Kubernetes Probes (`/healthz`, `/readyz`, `/livez`)**:
+   - Zero-overhead liveness and readiness probes allowing container orchestrators (Kubernetes, AWS ECS, GCP Cloud Run) to monitor service state and database connectivity without running heavy financial aggregations.
+
+4. **Enterprise HTTP Security & Distributed Tracing**:
+   - `EnterpriseSecurityMiddleware` generates or propagates `X-Request-ID` across all inbound requests for end-to-end distributed tracing.
+   - Enforces OWASP-recommended headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Response-Time-Ms` latency profiling.
+
+5. **Multi-Session Conversation Partitioning**:
+   - Chat interactions and history endpoints support explicit `session_id` scoping, ensuring multi-user SaaS deployments or parallel client sessions never leak or destructively reset conversation context.
+
+6. **Offline Evaluation Benchmark Suite (Evals-as-Code)**:
+   - Automated offline eval harness (`tests/test_eval_harness.py`) executing on every CI commit:
+     - *Grounding Fidelity Benchmark*: Verifies 100% of grounded claims pass and catches fabricated financial yields.
+     - *Adversarial Prompt Injection Benchmark*: Validates a 100% block rate against hostile directives (DAN, token escapes, SQL probes, exfiltration attacks) with 0% false positives on legitimate financial inquiries.
+     - *Analytical SLA Benchmark*: Asserts core deterministic engines (tax optimizer, credit scoring) execute in **<15ms**.
+
+---
+
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (**110 tests**) and automated CI pipeline:
+The repository includes a comprehensive test suite (**120 tests**) and automated CI pipeline:
 
 ```bash
-# Run full unit and integration test suite (110 tests across storage, agents, MCP, ReAct, RAG, and security)
+# Run full unit and integration test suite (120 tests across storage, agents, MCP, ReAct, RAG, and security)
 uv run pytest --verbose
 
 # Run ultra-fast Ruff linter

@@ -23,8 +23,9 @@ flowchart LR
 
 | Step | Code | Rule |
 |---|---|---|
+| Inbound Perimeter | `fiduciary/web/app.py` | `EnterpriseSecurityMiddleware` attaches `X-Request-ID`, verifies `/healthz`/`/readyz`, and sets OWASP headers. |
 | Prompt Guard | `fiduciary/agent/prompt_guard.py` | Each matched pattern adds 0.55 to 0.60 to the risk score. A score of 0.50 or more blocks the query. |
-| MCP Gateway | `fiduciary/agent/mcp_gateway.py` | The tool is chosen from keywords in the question. Each tool call is logged. |
+| MCP Gateway | `fiduciary/agent/mcp_gateway.py` | The tool is chosen from keywords in the question. Arguments are validated via Pydantic models. |
 | Context wrap | `PromptGuard.wrap_context_boundaries` | The context sits inside `<verified_financial_context>` tags. User text cannot close these tags. |
 | Cache | `LLMClient.generate` | The key is the mode, model, prompts and database state. |
 | Gateway call | `LLMClient._generate_gateway` | The client posts to `/chat/completions`. |

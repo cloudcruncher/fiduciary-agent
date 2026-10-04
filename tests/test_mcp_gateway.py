@@ -89,3 +89,18 @@ def test_mcp_api_endpoints():
     exec_data = exec_resp.json()
     assert exec_data["status"] == "SUCCESS"
     assert "cash_isas" in exec_data["result"]
+
+
+def test_mcp_pydantic_argument_validation():
+    # Valid arguments
+    res_valid = MCPGateway.call_tool("fetch_boe_base_rate", {"timeout": 3.0})
+    assert res_valid["status"] == "SUCCESS"
+
+    # Coerced string to integer
+    res_coerced = MCPGateway.call_tool("query_spending_and_transactions", {"query": "coffee", "limit": "5"})
+    assert res_coerced["status"] == "SUCCESS"
+
+    # Negative timeout violates ge=0.1 constraint, returning VALIDATION_ERROR cleanly
+    res_invalid = MCPGateway.call_tool("fetch_boe_base_rate", {"timeout": -10.0})
+    assert res_invalid["status"] == "VALIDATION_ERROR"
+    assert "error" in res_invalid["result"]

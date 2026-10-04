@@ -43,3 +43,22 @@ def test_react_agent_pii_deanonymization():
     # Deanonymizer should have restored '12345678'
     assert "12345678" in res["answer"]
     assert "[ACCOUNT_NUM_1]" not in res["answer"]
+
+
+def test_react_step_payload_pydantic_validation():
+    from fiduciary.agent.react_agent import ReActStepPayload
+
+    text = 'Thought: Need spending data.\nAction: query_spending_and_transactions\nAction Input: {"query": "dining", "limit": 10}'
+    payload = ReActFiduciaryAgent._parse_react_response(text)
+
+    assert isinstance(payload, ReActStepPayload)
+    assert payload.thought == "Need spending data."
+    assert payload.action == "query_spending_and_transactions"
+    assert payload.action_input["query"] == "dining"
+    assert payload.action_input["limit"] == 10
+
+    # Test unpacking compatibility
+    thought, action, action_input = payload
+    assert thought == "Need spending data."
+    assert action == "query_spending_and_transactions"
+    assert action_input["limit"] == 10
