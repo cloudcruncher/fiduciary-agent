@@ -9,9 +9,13 @@ from typing import Any, Dict, List, Optional
 import fiduciary.config as config
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(config.DB_PATH)
+def get_connection(timeout: float = 15.0) -> sqlite3.Connection:
+    conn = sqlite3.connect(config.DB_PATH, timeout=timeout)
     conn.row_factory = sqlite3.Row
+    # Enterprise-grade SQLite concurrency & integrity pragmas:
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
     return conn
 
 def init_db():
@@ -91,6 +95,7 @@ def init_db():
 
     CREATE TABLE IF NOT EXISTS copilot_chat (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT DEFAULT 'default',
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         metadata_json TEXT,
@@ -202,6 +207,17 @@ def init_db():
         cursor.execute("ALTER TABLE llm_traces ADD COLUMN judge_result_json TEXT")
     if "tools_used_json" not in existing_trace_cols:
         cursor.execute("ALTER TABLE llm_traces ADD COLUMN tools_used_json TEXT")
+
+    # Safe column migration on copilot_chat for session isolation
+    cursor.execute("PRAGMA table_info(copilot_chat)")
+    existing_chat_cols = [row[1] for row in cursor.fetchall()]
+    if "session_id" not in existing_chat_cols:
+        cursor.execute("ALTER TABLE copilot_chat ADD COLUMN session_id TEXT DEFAULT 'default'")
+
+    # Enterprise performance indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_copilot_chat_session ON copilot_chat (session_id, id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions (account_id, booking_date);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_batch ON transactions (statement_batch_id);")
 
     conn.commit()
     conn.close()
@@ -985,26 +1001,39 @@ def get_recurring_bills() -> List[Dict[str, Any]]:
     conn.close()
     return rows
 
-def save_chat_message(role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+def save_chat_message(
+    role: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: str = "default"
+):
     import json
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO copilot_chat (role, content, metadata_json, created_at)
-    VALUES (?, ?, ?, ?)
-    """, (role, content, json.dumps(metadata or {}), datetime.now().isoformat()))
+    INSERT INTO copilot_chat (session_id, role, content, metadata_json, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    """, (session_id or "default", role, content, json.dumps(metadata or {}), datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
-def get_chat_history(limit: int = 50) -> List[Dict[str, Any]]:
+def get_chat_history(limit: int = 50, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     import json
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-    SELECT * FROM copilot_chat
-    ORDER BY id ASC
-    LIMIT ?
-    """, (limit,))
+    if session_id is not None:
+        cursor.execute("""
+        SELECT * FROM copilot_chat
+        WHERE session_id = ?
+        ORDER BY id ASC
+        LIMIT ?
+        """, (session_id, limit))
+    else:
+        cursor.execute("""
+        SELECT * FROM copilot_chat
+        ORDER BY id ASC
+        LIMIT ?
+        """, (limit,))
     rows = []
     for r in cursor.fetchall():
         item = dict(r)
@@ -1017,10 +1046,13 @@ def get_chat_history(limit: int = 50) -> List[Dict[str, Any]]:
     conn.close()
     return rows
 
-def clear_chat_history():
+def clear_chat_history(session_id: Optional[str] = None):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM copilot_chat")
+    if session_id is not None:
+        cursor.execute("DELETE FROM copilot_chat WHERE session_id = ?", (session_id,))
+    else:
+        cursor.execute("DELETE FROM copilot_chat")
     conn.commit()
     conn.close()
 

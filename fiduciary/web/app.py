@@ -1,13 +1,18 @@
 import asyncio
 import logging
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from fiduciary.agent.advisor import FiduciaryAdvisor
 from fiduciary.agent.automation import SmartAutomationEngine
@@ -23,6 +28,7 @@ from fiduciary.storage.db import (
     clear_chat_history,
     delete_account,
     get_chat_history,
+    get_connection,
     get_data_engineering_audit_summary,
     get_net_worth_breakdown,
     get_recent_transactions,
@@ -53,7 +59,36 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
+
+class EnterpriseSecurityMiddleware(BaseHTTPMiddleware):
+    """
+    Enterprise Gateway Middleware:
+    1. Distributed trace propagation via X-Request-ID
+    2. Request latency profiling via X-Response-Time-Ms
+    3. Essential OWASP security headers (MIME-sniffing, Framing/Clickjacking, Referrer)
+    """
+    async def dispatch(self, request: Request, call_next):
+        req_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        start_t = time.perf_counter()
+        response: Response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+        response.headers["X-Request-ID"] = req_id
+        response.headers["X-Response-Time-Ms"] = f"{elapsed_ms:.2f}"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
 app = FastAPI(title="Personal Fiduciary Financial Harness", lifespan=lifespan)
+app.add_middleware(EnterpriseSecurityMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def background_sync_worker():
     """Periodically syncs all connected Open Banking and Wise accounts in the background every 3 minutes."""
@@ -70,6 +105,7 @@ async def background_sync_worker():
 
 class CopilotQueryRequest(BaseModel):
     query: str
+    session_id: Optional[str] = "default"
     reset_session: Optional[bool] = False
     use_react: Optional[bool] = False
 
@@ -3445,6 +3481,29 @@ DASHBOARD_HTML = """
 </html>
 """
 
+@app.get("/healthz", tags=["Operations"])
+@app.get("/health", tags=["Operations"])
+@app.get("/livez", tags=["Operations"])
+def healthz():
+    """Enterprise Kubernetes/Cloud liveness probe."""
+    return {"status": "ok", "service": "fiduciary-agent", "timestamp": datetime.now().isoformat()}
+
+@app.get("/readyz", tags=["Operations"])
+def readyz():
+    """Enterprise Kubernetes/Cloud readiness probe verifying database connectivity."""
+    try:
+        conn = get_connection(timeout=2.0)
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        return {
+            "status": "ready",
+            "database": "connected",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Readiness probe failed on database check: {e}")
+        raise HTTPException(status_code=503, detail="Database connectivity check failed")
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     return HTMLResponse(content=DASHBOARD_HTML)
@@ -3570,8 +3629,10 @@ def get_cancel_template(req: CancelLetterRequest):
 def copilot_chat(req: CopilotQueryRequest):
     init_db()
     copilot = AICopilotEngine()
+    session_id = getattr(req, "session_id", "default") or "default"
     answer = copilot.process_query(
         req.query,
+        session_id=session_id,
         reset_session=bool(req.reset_session),
         use_react=bool(req.use_react)
     )
@@ -3579,7 +3640,8 @@ def copilot_chat(req: CopilotQueryRequest):
     return {
         "answer": answer,
         "mode": status["mode"],
-        "badge": status["privacy_badge"]
+        "badge": status["privacy_badge"],
+        "session_id": session_id
     }
 
 @app.post("/api/copilot/react")
@@ -3601,16 +3663,16 @@ def rag_search_endpoint(q: str, limit: int = 3):
     return {"query": q, "results": results}
 
 @app.get("/api/copilot/history")
-def copilot_history(limit: int = 50):
+def copilot_history(limit: int = 50, session_id: Optional[str] = Query(None)):
     init_db()
-    messages = get_chat_history(limit=limit)
-    return {"messages": messages}
+    messages = get_chat_history(limit=limit, session_id=session_id)
+    return {"messages": messages, "session_id": session_id or "all"}
 
 @app.post("/api/copilot/clear")
-def copilot_clear():
+def copilot_clear(session_id: Optional[str] = Query(None)):
     init_db()
-    clear_chat_history()
-    return {"status": "cleared"}
+    clear_chat_history(session_id=session_id)
+    return {"status": "cleared", "session_id": session_id or "all"}
 
 class MCPExecuteRequest(BaseModel):
     tool_name: str

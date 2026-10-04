@@ -58,18 +58,18 @@ class AICopilotEngine:
             "tax_audit": tax_audit
         }
 
-    def process_query(self, user_query: str, reset_session: bool = False, use_react: bool = False) -> str:
+    def process_query(self, user_query: str, session_id: str = "default", reset_session: bool = False, use_react: bool = False) -> str:
         """Processes a user question, saves to conversation history, and returns response."""
         if reset_session:
-            clear_chat_history()
+            clear_chat_history(session_id=session_id)
 
-        save_chat_message("user", user_query)
+        save_chat_message("user", user_query, session_id=session_id)
 
         # 0. Prompt Guard Inspection & Injection Defense
         guard_result = PromptGuard.inspect(user_query)
         if not guard_result.is_safe:
             mock_resp = guard_result.guard_response or "🛡️ Unauthorized query blocked by Prompt Guard."
-            save_chat_message("assistant", mock_resp)
+            save_chat_message("assistant", mock_resp, session_id=session_id)
             return mock_resp
 
         clean_query = guard_result.sanitized_query
@@ -83,7 +83,7 @@ class AICopilotEngine:
                 "- Open LM Studio and start server on `http://localhost:1234`.\n\n"
                 "Both options run with **100% Local Privacy** (zero data leaves your device)."
             )
-            save_chat_message("assistant", mock_resp)
+            save_chat_message("assistant", mock_resp, session_id=session_id)
             return mock_resp
 
         context = self.get_financial_context()
@@ -102,7 +102,7 @@ class AICopilotEngine:
             "elaborate", "what else", "which one", "can you explain", "summarize that", "how do i"
         ])
 
-        history = get_chat_history(limit=4)
+        history = get_chat_history(limit=4, session_id=session_id)
         formatted_history = []
         if is_followup and len(history) > 1:
             for h in history[-3:-1]:  # Keep only recent immediate turn
@@ -450,7 +450,7 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
             react_agent = ReActFiduciaryAgent(llm=self.llm, enable_pii_anonymization=True)
             res = react_agent.run(clean_query, context=wrapped_context)
             final_ans = res["answer"]
-            save_chat_message("assistant", final_ans)
+            save_chat_message("assistant", final_ans, session_id=session_id)
             return final_ans
 
         # Reversible PII anonymization before passing prompt to LLM
@@ -468,6 +468,6 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
         if deanonymize_map:
             response_text = PIIAnonymizer.deanonymize(response_text, deanonymize_map)
 
-        save_chat_message("assistant", response_text)
+        save_chat_message("assistant", response_text, session_id=session_id)
         return response_text
 

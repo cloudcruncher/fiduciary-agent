@@ -190,3 +190,56 @@ def test_api_routes():
     assert "Financial Data Engineering &amp; Closed-Loop Reconciliation" in res_arch.text
 
 
+def test_enterprise_probes_and_security_headers():
+    # 1. Liveness probe (/healthz, /health, /livez)
+    for endpoint in ["/healthz", "/health", "/livez"]:
+        res = client.get(endpoint)
+        assert res.status_code == 200
+        assert res.json()["status"] in ("ok", "alive")
+
+    # 2. Readiness probe (/readyz)
+    res_ready = client.get("/readyz")
+    assert res_ready.status_code == 200
+    assert res_ready.json()["status"] == "ready"
+    assert res_ready.json()["database"] == "connected"
+
+    # 3. Security headers & correlation tracking
+    res_sec = client.get("/healthz", headers={"X-Request-ID": "test-trace-12345"})
+    assert res_sec.status_code == 200
+    assert res_sec.headers.get("X-Request-ID") == "test-trace-12345"
+    assert "X-Response-Time-Ms" in res_sec.headers
+    assert res_sec.headers.get("X-Content-Type-Options") == "nosniff"
+    assert res_sec.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert res_sec.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+def test_session_scoped_chat():
+    from fiduciary.storage.db import clear_chat_history, get_chat_history, save_chat_message
+
+    # Setup isolated test sessions
+    sess_a = "user_session_alpha"
+    sess_b = "user_session_beta"
+
+    clear_chat_history(session_id=sess_a)
+    clear_chat_history(session_id=sess_b)
+
+    save_chat_message("user", "Alpha message", session_id=sess_a)
+    save_chat_message("user", "Beta message", session_id=sess_b)
+
+    history_a = get_chat_history(session_id=sess_a)
+    history_b = get_chat_history(session_id=sess_b)
+
+    assert len(history_a) == 1
+    assert history_a[0]["content"] == "Alpha message"
+    assert len(history_b) == 1
+    assert history_b[0]["content"] == "Beta message"
+
+    # Clearing session A must not wipe session B
+    clear_chat_history(session_id=sess_a)
+    assert len(get_chat_history(session_id=sess_a)) == 0
+    assert len(get_chat_history(session_id=sess_b)) == 1
+
+    # Cleanup
+    clear_chat_history(session_id=sess_b)
+
+

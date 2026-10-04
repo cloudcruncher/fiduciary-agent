@@ -25,10 +25,10 @@ class PromptGuard:
     OVERRIDE_PATTERNS = [
         (r"ignore\s+(?:all\s+)?(?:previous|prior|above|existing|system|\s+)*\s*(?:instructions|rules|directives|prompts|commands)", "INSTRUCTION_OVERRIDE"),
         (r"disregard\s+(?:all\s+)?(?:previous|prior|above|system|\s+)*\s*(?:instructions|rules|directives|prompts)", "INSTRUCTION_DISREGARD"),
-        (r"forget\s+(?:all\s+)?(?:your\s+)?(?:previous|prior|system|\s+)*\s*(?:rules|instructions|prompts)", "RULE_FORGET"),
+        (r"forget\s+(?:all\s+)?(?:your\s+)?(?:previous|prior|system|\s+)*\s*(?:rules|instructions|directives|prompts|commands)", "RULE_FORGET"),
         (r"bypass\s+(?:all\s+)?(?:safety|security|ethics|guardrails|protocols)", "SAFETY_BYPASS"),
         (r"\b(?:dan\s+mode|jailbreak|unrestricted\s+mode|developer\s+mode)\b", "JAILBREAK_MODE"),
-        (r"(?:reveal|print|show|output|leak|dump)\s+(?:the\s+)?(?:(?:system|initial|base|hidden)\s+)?(?:prompt|instructions|rules)", "SYSTEM_PROMPT_EXTRACTION"),
+        (r"(?:reveal|print|show|output|leak|dump)\s+(?:the|your\s+)?(?:(?:system|initial|base|hidden)\s+)?(?:prompt|instructions|rules)", "SYSTEM_PROMPT_EXTRACTION"),
         (r"(?:you\s+are\s+now|act\s+as)\s+(?:an?\s+)?(?:evil|unrestricted|unfiltered|malicious|dark\s+web)\b", "ROLE_HIJACKING"),
         (r"output\s+[\"']?(?:hacked|pwned|bypassed)[\"']?", "CANARY_INJECTION"),
     ]
