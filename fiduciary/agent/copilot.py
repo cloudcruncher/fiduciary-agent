@@ -11,6 +11,7 @@ from fiduciary.analysis.spending import SpendingInsightEngine
 from fiduciary.analysis.tax_optimizer import UKTaxOptimizer
 from fiduciary.analysis.watchdog import FinancialWatchdog
 from fiduciary.storage.db import (
+    clear_chat_history,
     get_chat_history,
     get_net_worth_breakdown,
     get_recent_transactions,
@@ -56,8 +57,11 @@ class AICopilotEngine:
             "tax_audit": tax_audit
         }
 
-    def process_query(self, user_query: str) -> str:
+    def process_query(self, user_query: str, reset_session: bool = False) -> str:
         """Processes a user question, saves to conversation history, and returns response."""
+        if reset_session:
+            clear_chat_history()
+
         save_chat_message("user", user_query)
 
         # 0. Prompt Guard Inspection & Injection Defense
@@ -90,11 +94,21 @@ class AICopilotEngine:
         mcp_context_blocks, mcp_tools_called = MCPGateway.resolve_and_ground(clean_query, p, wd, tax)
         tools_executed = list(mcp_tools_called)
 
-        # 2. Retrieve recent conversation history (last 4 turns for low prompt latency)
-        history = get_chat_history(limit=5)
+        # 2. Smart conversational history: only inject prior context if query is an explicit follow-up
+        q_lower = clean_query.lower()
+        is_followup = any(w in q_lower for w in [
+            "why", "how come", "explain that", "what about", "and then", "tell me more",
+            "elaborate", "what else", "which one", "can you explain", "summarize that", "how do i"
+        ])
+
+        history = get_chat_history(limit=4)
         formatted_history = []
-        for h in history[:-1]:  # Exclude current query just saved
-            formatted_history.append(f"{h['role'].upper()}: {h['content']}")
+        if is_followup and len(history) > 1:
+            for h in history[-3:-1]:  # Keep only recent immediate turn
+                content = h["content"]
+                if h["role"] == "assistant" and len(content) > 180:
+                    content = content[:180] + "..."
+                formatted_history.append(f"{h['role'].upper()}: {content}")
 
         # 3. Intent classification & spending intent parsing
         q_lower = clean_query.lower()
@@ -434,7 +448,7 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
             prompt=prompt_with_history,
             system_prompt=system_prompt,
             temperature=0.2,
-            max_tokens=450,
+            max_tokens=1000,
             caller="copilot",
             tools_used=tools_executed
         )

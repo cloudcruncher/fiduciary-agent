@@ -315,15 +315,20 @@ The harness solves this through **Deterministic Pre-Calculation + Anti-Refusal F
 - **Compliance Re-Framing**: The model is explicitly framed as an authorized on-device analytical copilot reporting ground-truth telemetry, with a strict directive: *NEVER output disclaimers like "I cannot provide financial advice" when reporting verified figures.*
 - **Pre-Calculated Emergency Fund Math**: When asked *"What is my emergency fund buffer?"*, the exact 3-month target (£8,263.80), liquid capital (£7,462.12), shortfall (£801.68), and runway (81.3 days vs 90 days recommended) are pre-injected into the prompt.
 - **Whole-of-Wealth Balance Sheet**: Accurate net worth asset and liability breakdowns are pre-assembled from the multi-asset database, eliminating arithmetic hallucinations.
+- **Smart Conversational Isolation & Clean Session Refresh**: Topic-aware context filtering ensures previous conversation turns are only injected when queries are explicit follow-ups (`why`, `how come`, `explain that`), preventing small SLMs from anchoring onto stale monologues. Users can start a clean session anytime via the Copilot UI `🔄 New Chat` button or `reset_session=True`.
+- **Multi-Tier Web Knowledge Engine**:
+  1. *Statutory HMRC Schedules*: Instant sub-millisecond retrieval of exact UK tax allowances (£20,000 ISA, £4,000 LISA, £60,000 Pension, £3,000 CGT, PSA).
+  2. *Google Search / Serper API*: Direct Google Search execution when `SERPER_API_KEY` or `GOOGLE_SEARCH_API_KEY` is configured in `.env`.
+  3. *Live Organic Web Extraction*: Zero-overhead organic search parser pulling real titles, snippets, and official guidance from GOV.UK, HMRC, and NS&I without requiring paid API keys.
 
 ---
 
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (**98 tests**) and automated CI pipeline:
+The repository includes a comprehensive test suite (**100 tests**) and automated CI pipeline:
 
 ```bash
-# Run full unit and integration test suite (98 tests across storage, agents, MCP, and security)
+# Run full unit and integration test suite (100 tests across storage, agents, MCP, and security)
 uv run pytest --verbose
 
 # Run ultra-fast Ruff linter

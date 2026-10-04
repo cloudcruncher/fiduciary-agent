@@ -70,6 +70,7 @@ async def background_sync_worker():
 
 class CopilotQueryRequest(BaseModel):
     query: str
+    reset_session: Optional[bool] = False
 
 class AssetAddRequest(BaseModel):
     name: str
@@ -1267,8 +1268,10 @@ DASHBOARD_HTML = """
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <button onclick="clearChat()" title="Clear chat" class="text-slate-400 hover:text-slate-200 text-xs">🗑️</button>
-                <button onclick="toggleCopilot()" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+                <button onclick="clearChat()" title="Start New Session & Clear Chat" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium flex items-center space-x-1 border border-slate-700/80 transition-colors">
+                    <span>🔄</span><span>New Chat</span>
+                </button>
+                <button onclick="toggleCopilot()" class="text-slate-400 hover:text-white text-sm font-bold ml-1">✕</button>
             </div>
         </div>
 
@@ -1281,12 +1284,13 @@ DASHBOARD_HTML = """
 
         <!-- Quick Prompt Chips -->
         <div class="px-3 py-1.5 bg-slate-950/80 border-t border-slate-800 flex space-x-1.5 overflow-x-auto text-[10px] whitespace-nowrap">
+            <button onclick="clearChat()" class="px-2 py-0.5 bg-purple-950/80 hover:bg-purple-900 border border-purple-700/50 text-purple-200 rounded-full font-semibold">🔄 New Session</button>
+            <button onclick="sendQuickPrompt('What is my emergency fund buffer?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-full">🛡️ Emergency Buffer</button>
             <button onclick="sendQuickPrompt('How much did I spend on pubs?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-full">🍺 Pub Spend</button>
             <button onclick="sendQuickPrompt('Show my last 10 transactions')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-full">💳 Last 10 Txs</button>
-            <button onclick="sendQuickPrompt('What is my financial health score and what should I do?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-full">🧬 Health Score &amp; DNA</button>
-            <button onclick="sendQuickPrompt('Can I afford a £1,500 holiday?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full">Afford £1.5k holiday?</button>
-            <button onclick="sendQuickPrompt('What bills are due in the next 14 days?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full">Bills in 14 days</button>
-            <button onclick="sendQuickPrompt('Explain my 60% tax trap risk')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full">60% Tax Trap</button>
+            <button onclick="sendQuickPrompt('What is my financial health score and what should I do?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-cyan-200 rounded-full">🧬 Health Score</button>
+            <button onclick="sendQuickPrompt('What bills are due in the next 14 days?')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full">📅 Bills in 14 days</button>
+            <button onclick="sendQuickPrompt('Explain my 60% tax trap risk')" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full">📉 60% Tax Trap</button>
         </div>
 
         <!-- Input Bar -->
@@ -2686,7 +2690,10 @@ DASHBOARD_HTML = """
                 `;
                 container.scrollTop = container.scrollHeight;
             } catch (err) {
-                document.getElementById('loading-copilot-msg').innerHTML = `<span class="text-rose-400">Error: ${err}</span>`;
+                const loadingEl = document.getElementById('loading-copilot-msg');
+                if (loadingEl) {
+                    loadingEl.innerHTML = `<span class="text-rose-400">Error connecting to Copilot: ${err.message || err}</span>`;
+                }
             }
         }
 
@@ -2706,12 +2713,16 @@ DASHBOARD_HTML = """
         }
 
         async function clearChat() {
-            await fetch('/api/copilot/clear', { method: 'POST' });
-            document.getElementById('copilot-messages').innerHTML = `
-                <div class="p-2.5 bg-slate-800/70 rounded-xl text-slate-300">
-                    Chat history cleared. How can I help you today?
-                </div>
-            `;
+            try {
+                await fetch('/api/copilot/clear', { method: 'POST' });
+                document.getElementById('copilot-messages').innerHTML = `
+                    <div class="p-2.5 bg-slate-800/80 border border-slate-700/60 rounded-xl text-slate-300">
+                        ✨ <strong>Fresh session started.</strong> Context reset. Ask me anything!
+                    </div>
+                `;
+            } catch (err) {
+                console.error("Failed to clear chat:", err);
+            }
         }
 
         // Custom Asset Modal
@@ -3558,7 +3569,7 @@ def get_cancel_template(req: CancelLetterRequest):
 def copilot_chat(req: CopilotQueryRequest):
     init_db()
     copilot = AICopilotEngine()
-    answer = copilot.process_query(req.query)
+    answer = copilot.process_query(req.query, reset_session=bool(req.reset_session))
     status = copilot.get_provider_status()
     return {
         "answer": answer,

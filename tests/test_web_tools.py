@@ -58,3 +58,24 @@ def test_tool_catalog_and_observability():
     assert tools[0]["status"] == "SUCCESS"
     assert "First Direct" in tools[0]["summary"]
 
+
+def test_search_duckduckgo_instant_statutory_rules():
+    from fiduciary.agent.web_tools import search_duckduckgo_instant
+
+    isa_res = search_duckduckgo_instant("What is the annual ISA allowance limit?")
+    assert isa_res is not None
+    assert "20,000" in isa_res["abstract"]
+    assert "4,000" in isa_res["abstract"]
+
+    pension_res = search_duckduckgo_instant("What is the pension annual allowance rule?")
+    assert pension_res is not None
+    assert "60,000" in pension_res["abstract"]
+
+    cgt_res = search_duckduckgo_instant("What is the capital gains tax cgt allowance?")
+    assert cgt_res is not None
+    assert "3,000" in cgt_res["abstract"]
+
+    psa_res = search_duckduckgo_instant("What is the personal savings allowance psa limit?")
+    assert psa_res is not None
+    assert "1,000" in psa_res["abstract"]
+

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from fiduciary.analysis.customer_profile import CustomerProfileEngine
@@ -126,3 +128,30 @@ def test_get_recent_transactions_category_filter():
     assert len(txs_dining) > 0
     for t in txs_dining:
         assert "Dining" in t["category"]
+
+
+def test_copilot_session_reset():
+    from fiduciary.agent.copilot import AICopilotEngine
+    from fiduciary.storage.db import get_chat_history, save_chat_message
+
+    # Seed some old messages
+    save_chat_message("user", "Old query 1")
+    save_chat_message("assistant", "Old answer 1")
+    save_chat_message("user", "Old query 2")
+    save_chat_message("assistant", "Old answer 2")
+    assert len(get_chat_history()) >= 4
+
+    # Process query with reset_session=True
+    copilot = AICopilotEngine()
+    with patch.object(copilot.llm, "generate", return_value="Fresh response"):
+        res = copilot.process_query("What is my emergency fund buffer?", reset_session=True)
+        assert res == "Fresh response"
+
+    # Only current user and assistant message should exist
+    history = get_chat_history()
+    assert len(history) == 2
+    assert history[0]["role"] == "user"
+    assert history[0]["content"] == "What is my emergency fund buffer?"
+    assert history[1]["role"] == "assistant"
+    assert history[1]["content"] == "Fresh response"
+
