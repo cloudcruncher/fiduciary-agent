@@ -30,11 +30,17 @@ def ensure_gateway_running(gateway_url: Optional[str] = None) -> bool:
     If the gateway is targeted to local port 4000 (e.g. 127.0.0.1:4000 / localhost:4000)
     and is not currently responding, automatically spawn the LiteLLM proxy in the background.
     """
+    import os
     import shutil
+    import socket
     import subprocess
     import time
 
     from fiduciary.config import BASE_DIR
+
+    # Prevent spawning background servers during automated test execution
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "1":
+        return False
 
     target_url = (gateway_url or os.getenv("AI_GATEWAY_URL") or "http://localhost:4000/v1").rstrip("/")
     if "localhost:4000" not in target_url and "127.0.0.1:4000" not in target_url:
@@ -60,6 +66,14 @@ def ensure_gateway_running(gateway_url: Optional[str] = None) -> bool:
 
     if _is_alive():
         return True
+
+    # Check if port 4000 already has a listening socket (e.g. starting up or in use)
+    # to avoid spawning duplicate processes on random ephemeral fallback ports
+    try:
+        with socket.create_connection(("127.0.0.1", 4000), timeout=0.3):
+            return True
+    except (ConnectionRefusedError, TimeoutError, OSError):
+        pass
 
     litellm_bin = shutil.which("litellm")
     if not litellm_bin:

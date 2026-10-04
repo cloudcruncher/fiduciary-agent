@@ -199,7 +199,7 @@ def test_llm_gateway_offline_falls_back_to_local_ollama():
             return m
         raise Exception("Offline")
 
-    with patch("requests.get", side_effect=mock_get):
+    with patch("requests.get", side_effect=mock_get), patch("fiduciary.agent.llm_client.ensure_gateway_running", return_value=False):
         client = LLMClient(
             provider="gateway",
             gateway_url="http://localhost:4000/v1"
