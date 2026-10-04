@@ -1096,7 +1096,7 @@ DASHBOARD_HTML = """
                 <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div>
                         <div class="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-400 text-xs font-semibold mb-2">
-                            <span>🔬 Lead Data Engineer Verification</span>
+                            <span>🔬 Financial Data Pipeline Verification</span>
                             <span>•</span>
                             <span>100% Invariant Certified</span>
                         </div>
@@ -1218,7 +1218,7 @@ DASHBOARD_HTML = """
                 <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                     <h3 class="font-bold text-xs tracking-wider uppercase text-slate-300 flex items-center space-x-2">
                         <span>🏛️</span>
-                        <span>Lead Data Engineer Formal Architectural Review &amp; Sign-Off</span>
+                        <span>Financial Data Engineering Architecture &amp; Invariant Review</span>
                     </h3>
                     <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold">Production Ready</span>
                 </div>

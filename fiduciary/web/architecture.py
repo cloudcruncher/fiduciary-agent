@@ -127,7 +127,7 @@ ARCHITECTURE_HTML = r"""<!DOCTYPE html>
                 5. Database Schema & Entity Model
             </button>
             <button onclick="switchArchTab('dataeng')" id="tab-dataeng" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
-                6. Lead Data Engineering &amp; Closed-Loop Reconciliation
+                6. Financial Data Engineering &amp; Closed-Loop Reconciliation
             </button>
             <button onclick="switchArchTab('mobile')" id="tab-mobile" class="tab-btn px-4 py-2 rounded-t-lg border-b-2 border-transparent transition text-slate-400 hover:text-white">
                 7. Mobile Phone Linking &amp; Biometric OAuth Handoff
@@ -748,12 +748,12 @@ erDiagram
                     <p class="text-slate-400 font-sans text-[11px]">All connections are local loopbacks (127.0.0.1). Zero outbound external packets.</p>
                 </div>
             </div>
-        <!-- TAB 6: LEAD DATA ENGINEERING & CLOSED-LOOP RECONCILIATION -->
+        <!-- TAB 6: FINANCIAL DATA ENGINEERING & CLOSED-LOOP RECONCILIATION -->
         <div id="section-dataeng" class="space-y-6 hidden">
             <div class="card space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                     <div>
-                        <h3 class="font-bold text-sm text-white">Lead Data Engineering &amp; Closed-Loop Reconciliation Architecture</h3>
+                        <h3 class="font-bold text-sm text-white">Financial Data Engineering &amp; Closed-Loop Reconciliation Architecture</h3>
                         <p class="text-xs text-slate-400">Formal engineering invariants, cryptographic provenance, stateful narrative buffering, and two-stage SLM critic verification</p>
                     </div>
                     <span class="text-xs text-emerald-400 font-mono font-semibold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">Discrepancy ≡ £0.00</span>

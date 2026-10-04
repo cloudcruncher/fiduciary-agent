@@ -7,9 +7,10 @@
 [![Open Banking: UK Regulated](https://img.shields.io/badge/Open%20Banking-TrueLayer%20%7C%20Wise-blueviolet.svg)](#-connecting-real-uk-banks)
 [![MCP: Model Context Protocol](https://img.shields.io/badge/MCP-Gateway%20%26%207%20Tools-blue.svg)](#-model-context-protocol-mcp-gateway)
 [![Security: Prompt Guard](https://img.shields.io/badge/Security-Prompt%20Guard%20Active-crimson.svg)](#-prompt-guard-injection--jailbreak-defense)
-[![Tests: 98 Passed](https://img.shields.io/badge/Tests-98%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
+[![Tests: 110 Passed](https://img.shields.io/badge/Tests-110%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
 [![Mobile: PWA & FaceID](https://img.shields.io/badge/Mobile-PWA%20%26%20FaceID-indigo.svg)](#3-mobile-phone-banking--biometric-faceid-linking-zero-egress-lan-architecture)
 [![Architecture: Interactive Map](https://img.shields.io/badge/Architecture-Interactive%20Live%20Map-teal.svg)](https://cloudcruncher.github.io/fiduciary-agent/)
+[![Enterprise Walkthrough](https://img.shields.io/badge/Enterprise-Architecture%20Walkthrough-emerald.svg)](https://cloudcruncher.github.io/fiduciary-agent/explain/enterprise-walkthrough.html)
 
 A 100% `uv`-managed, local-first, privacy-preserving fiduciary intelligence harness engineered for Apple Silicon macOS.
 
@@ -178,16 +179,19 @@ Connecting UK banks (Lloyds, Revolut, Chase, HSBC, NatWest) often requires biome
    - *The Instant Fix*: Copy the address bar URL from your phone browser and tap the prominent green button **`📋 Paste from Clipboard & Connect`** at the top of your Fiduciary dashboard. The app regex-extracts the authorization `code=` and completes the token exchange asynchronously via `/api/truelayer/exchange`.
 5. **Terminal ASCII QR Code Pairing**: Alternatively, run `./f connect` in your Mac terminal or click QR Handoff in the dashboard to render a high-contrast ASCII QR code. Point your iPhone camera to scan and authenticate immediately.
 
-### 4. PDF & CSV Bank Statement Importer (Lead Data Engineering Pipeline)
-Drop any NatWest, Barclays, Revolut, Chase, or HSBC PDF/CSV statement into the drag-and-drop importer at `http://localhost:8080` or ingest via API:
-- **Closed-Loop Double-Entry Accounting Invariant**: Every statement undergoes mathematical reconciliation: $\text{Opening Balance} + \text{Inflows} - \text{Outflows} \equiv \text{Closing Balance}$. Batches are marked `RECONCILED` only if discrepancy is £0.00.
+### 4. End-to-End Financial Data Engineering & Closed-Loop Ingestion
+Data engineering is not merely an ingestion script—it is the structural foundation across every layer of the fiduciary agent:
+- **Canonical Open Banking Modeling**: Ingests, normalizes, and validates transaction streams from diverse UK institutions (NatWest, Barclays, Revolut, Chase, HSBC, Wise) into a unified, typed relational schema.
+- **Closed-Loop Double-Entry Invariant**: Every statement batch undergoes mathematical verification: $\text{Opening Balance} + \text{Inflows} - \text{Outflows} \equiv \text{Closing Balance}$. Batches are certified `RECONCILED` only if discrepancy is exactly £0.00.
 - **Cryptographic Provenance & Lineage**: SHA-256 batch fingerprints (`statement_batches` table) and deterministic transaction hashes (`generate_tx_fingerprint(account_id, date, amount, desc)`) guarantee idempotent de-duplication across overlapping statements.
-- **Layout-Aware UK Parsing Engine**: Solves real-world statement challenges (e.g. NatWest):
-  - *Same-Day Date Statefulness*: Propagates booking dates when banks leave date columns blank on subsequent transactions on the same day.
-  - *Multi-Line Narrative Buffering*: Seamlessly accumulates descriptions that wrap across 2–3 lines before amount columns.
+- **Resilient Layout-Aware Parsing Engine**: Solves real-world statement challenges (e.g. NatWest):
+  - *Same-Day Date Forward-Propagation*: Propagates booking dates when banks leave date columns blank on subsequent transactions on the same day.
+  - *Multi-Line Narrative Buffering*: Accumulates merchant descriptions that wrap across 2–3 lines before amount columns without truncation.
   - *Running Balance Delta Signing*: Computes signed transaction amounts directly from running balance deltas ($\Delta = B_i - B_{i-1}$), guaranteeing 100% sign precision for debits and credits.
   - *Legal & Overdraft Boundary Bounds*: Strict stop conditions eliminate phantom charges from overdraft fee examples and legal terms.
-- **Automated PII Shielding & Categorization**: Sort codes and account numbers are masked (`••-••-30`, `••••7715`), and transactions are categorized into standard UK budget buckets.
+- **Financial Feature Engineering**: Deterministically calculates liquid runway, discretionary spend velocity, payroll cadence, and 60% marginal tax traps.
+- **State-Bounded Cache Hashing**: Cryptographic SHA-256 database state hashing ensures zero-token semantic cache hits without stale data risk.
+- **Embedded Statutory Vector Indexing**: TF-IDF and dense embedding pipelines over HMRC tax schedules and FCA MCOB underwriting standards.
 
 ### 5. Credit & Underwriter Affordability Engine (FCA MCOB 11)
 UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow affordability** rather than CRA bureau scores alone:
@@ -221,21 +225,21 @@ Running local LLMs fast on an M3 MacBook Pro requires specific latency engineeri
 
 ---
 
-## ⚡ Google Antigravity & LLM Optimization Harness ($0.00 Local Offloading)
+## ⚡ Agentic Token & Cost Optimization Harness ($0.00 Local Offloading)
 
-To prevent exorbitant cloud API token expenditure and guarantee indefinite operational life on limited developer credits, the harness implements aggressive token, context, and credit optimization principles:
+To eliminate cloud API dependencies, prevent runaway agent trajectories, and run indefinitely on limited developer credits or 16GB laptops, the harness implements aggressive token, context, and cost optimization (integrated with the Google Antigravity Agent SDK and local SLMs):
 
 1. **Deterministic-First Python Offload ($0.00 LLM Cost)**:
    - 100% of mathematical aggregation (liquid runway, daily burn velocity, 60% tax trap calculations, net worth splits, mortgage capacity) runs in deterministic Python before any prompt is assembled.
    - LLMs are never used for arithmetic or database aggregation, eliminating expensive multi-turn reasoning loops and context pollution.
 2. **Dynamic Context Compaction (80% Prompt Reduction)**:
-   - Queries are classified by intent before prompt generation. Rather than dumping entire 90-day transaction ledgers into every turn, only relevant category metrics and top 5 itemized records are injected, shrinking context from ~1,800 tokens down to ~300 tokens.
-3. **Zero-Cost MD5 Response Caching**:
+   - Queries are classified by intent before prompt generation. Rather than dumping entire 90-day transaction ledgers into every turn, only relevant category metrics and top itemized records are injected, shrinking context from ~1,800 tokens down to ~300 tokens.
+3. **Zero-Cost State-Hashed Caching**:
    - Queries paired with identical financial state hashes hit an in-memory / SQLite response cache, returning instant (<1ms) responses without dispatching GPU inference cycles or cloud API calls.
 4. **Local SLM Default with Cloud Dormancy**:
    - Out-of-the-box operation defaults entirely to on-device SLMs (`qwen3.5:4b` via Ollama). Cloud Gemini API keys remain completely dormant unless explicitly requested for deep multi-year tax planning.
-5. **Strict Turn & Context Window Ceilings**:
-   - Strict maximum turn limits and context constraints eliminate runaway recursive agent trajectories and memory leaks.
+5. **Thinking Token Suppression & Hard Budget Guardrails**:
+   - Passes `"think": false` and configures `ThinkingLevel.MINIMAL` alongside hard token ceilings, dropping turn latency from 22s to < 1s.
 
 ---
 
@@ -384,14 +388,19 @@ GitHub Actions executes across **Python 3.11, 3.12, and 3.13** on every commit, 
 
 ---
 
-## 🏛️ Interactive Architecture & System Tour
+## 🏛️ Interactive Architecture, Explainers & System Tour
 
 Interactive architectural diagrams, sequence flows, grounding guardrails, and data schemas are accessible live:
 - 🌐 **[Live Interactive Architecture Map (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/)**
+- 🏛️ **[Interactive Enterprise Architecture Walkthrough (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/enterprise-walkthrough.html)**
+- 🧮 **[Interactive Credit Score Explorer (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/credit-explorer.html)**
 - 🧭 **[Complete System Walkthrough & User Guide (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/guide.html)**
-- Open [`docs/architecture.html`](docs/architecture.html) locally in your browser.
-- Or visit `http://localhost:8080/architecture` while the local server is running.
+- 📐 **[AI Gateway Architecture Diagram & Failover Spec](docs/explain/gateway.md)**
+- ✍️ **[ASD-STE100 Plain Technical English Messaging](docs/explain/credit-messages-ste.md)**
+- 🔬 **[Empirical System Prompt A/B Benchmark](docs/explain/prompt-ste-ab.md)**
+- 🎬 **[Programmatic Explainer Video & Narration](docs/explain/video/)**
 - Local System Tour and Module Guide: `http://localhost:8080/guide`.
+- Local Interactive Architecture: `http://localhost:8080/architecture`.
 
 ---
 

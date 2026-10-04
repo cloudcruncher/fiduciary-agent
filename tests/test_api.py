@@ -184,9 +184,9 @@ def test_api_routes():
         assert "laptop_redirect_uri" in mobile_json
         assert "http://192.168.1.100:8080/truelayer/callback" in mobile_json["mobile_redirect_uri"]
 
-    # 26. Architecture page contains Lead Data Engineering documentation
+    # 26. Architecture page contains Financial Data Engineering documentation
     res_arch = client.get("/architecture")
     assert res_arch.status_code == 200
-    assert "Lead Data Engineering &amp; Closed-Loop Reconciliation" in res_arch.text
+    assert "Financial Data Engineering &amp; Closed-Loop Reconciliation" in res_arch.text
 
 
