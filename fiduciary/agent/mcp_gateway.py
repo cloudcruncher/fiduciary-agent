@@ -47,7 +47,18 @@ class MCPGateway:
         },
         "search_web_instant": {
             "name": "search_web_instant",
-            "description": "Searches DuckDuckGo Instant Knowledge API for real-time definitions, UK financial allowances, and market facts in <250ms.",
+            "description": "Multi-tier live UK web knowledge engine: evaluates statutory HMRC schedules, queries Google Search (if API key or CSE is configured), or scrapes live UK organic web results from GOV.UK, HMRC, and NS&I in <350ms.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query (e.g. 'HMRC ISA allowance 2026', 'BoE inflation target')"}
+                },
+                "required": ["query"]
+            }
+        },
+        "search_web_live": {
+            "name": "search_web_live",
+            "description": "Multi-tier live UK web knowledge engine: evaluates statutory HMRC schedules, queries Google Search (if API key or CSE is configured), or scrapes live UK organic web results from GOV.UK, HMRC, and NS&I in <350ms.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -133,7 +144,7 @@ class MCPGateway:
             elif tool_name == "fetch_top_savings_and_isas":
                 result = fetch_top_savings_and_isas()
 
-            elif tool_name == "search_web_instant":
+            elif tool_name in ("search_web_instant", "search_web_live"):
                 q = args.get("query", "")
                 result = search_duckduckgo_instant(q) or {"heading": q, "abstract": "No instant summary found; refer to official HMRC/BoE guidelines."}
 

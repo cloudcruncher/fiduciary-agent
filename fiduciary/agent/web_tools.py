@@ -115,7 +115,26 @@ def search_duckduckgo_instant(query: str, timeout: float = 3.5) -> Optional[Dict
             "Higher rate (40%) taxpayers receive £500. Additional rate (45%) taxpayers receive £0."
         )
 
-    # 1. Google Serper / Search API if configured in .env
+    # 1. Google Search: Official Google Custom Search JSON API or Google Serper API
+    google_cse_id = os.getenv("GOOGLE_CSE_ID")
+    google_api_key = os.getenv("GOOGLE_SEARCH_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if google_cse_id and google_api_key:
+        try:
+            cse_url = f"https://www.googleapis.com/customsearch/v1?key={google_api_key}&cx={google_cse_id}&q={urllib.parse.quote_plus(query)}&gl=uk&num=3"
+            req = urllib.request.Request(cse_url, headers={"User-Agent": "FiduciaryAgent/1.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                snippets = [f"{item.get('title')}: {item.get('snippet')}" for item in data.get("items", [])[:3]]
+                if snippets:
+                    combined = " | ".join(snippets)
+                    if statutory:
+                        combined = f"{' | '.join(statutory.values())} | {combined}"
+                    res = {"heading": f"Google Search (Live UK): {query}", "abstract": combined, "source": "Google Custom Search"}
+                    _DDG_CACHE[query] = res
+                    return res
+        except Exception:
+            pass
+
     serper_key = os.getenv("SERPER_API_KEY") or os.getenv("GOOGLE_SEARCH_API_KEY")
     if serper_key:
         try:
@@ -180,6 +199,8 @@ def search_duckduckgo_instant(query: str, timeout: float = 3.5) -> Optional[Dict
         return res
 
     return None
+
+search_web_live = search_duckduckgo_instant
 
 def get_available_tools_catalog() -> list:
     """Returns the catalog of all active web and market tools available to the fiduciary agent."""
