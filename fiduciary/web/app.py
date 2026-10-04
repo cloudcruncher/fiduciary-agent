@@ -158,8 +158,9 @@ DASHBOARD_HTML = """
                 <button onclick="syncAllAccounts()" class="px-2 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded-lg transition flex items-center space-x-1 shadow-sm text-white" title="Sync live balances &amp; transactions for Wise &amp; Open Banking (Revolut)">
                     <span id="btn-sync-all-label">⚡ Sync</span>
                 </button>
-                <button onclick="connectTrueLayer()" class="px-2 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-lg transition flex items-center space-x-1 shadow-sm text-white" title="Connect or renew UK Open Banking consent (Revolut, Chase, etc.)">
+                <button onclick="connectTrueLayer()" class="px-2 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded-lg transition flex items-center space-x-1 sm:space-x-1.5 shadow-sm text-white" title="Connect or link UK banks (Revolut, Lloyds, Chase)">
                     <span id="btn-connect-bank-label">🏦 Connect</span>
+                    <span id="bank-connected-badge" class="hidden px-1.5 py-0.5 rounded text-[10px] bg-blue-900/90 border border-blue-400/40 text-blue-200 font-bold"></span>
                 </button>
                 <button onclick="toggleMobileMenu()" class="md:hidden p-1.5 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg border border-slate-700 text-slate-300 transition" title="More options">
                     ☰
@@ -1668,10 +1669,23 @@ DASHBOARD_HTML = """
                 const res = await fetch('/api/truelayer/status');
                 const data = await res.json();
                 const btnLabel = document.getElementById('btn-connect-bank-label');
-                if (data.connected && data.connected_banks && data.connected_banks.length > 0) {
-                    if (btnLabel) btnLabel.innerText = `🏦 ${data.connected_banks.join(' + ')}`;
-                } else if (data.connected) {
-                    if (btnLabel) btnLabel.innerText = '🏦 Linked';
+                const badge = document.getElementById('bank-connected-badge');
+                if (btnLabel) btnLabel.innerText = '🏦 Connect';
+                if (badge) {
+                    if (data.connected && data.connected_banks && data.connected_banks.length > 0) {
+                        const count = data.connected_banks.length;
+                        const names = data.connected_banks.join(', ');
+                        badge.innerText = `${count} Linked`;
+                        badge.classList.remove('hidden');
+                        if (btnLabel.parentElement) {
+                            btnLabel.parentElement.title = `Connected: ${names}. Click to link another bank (e.g. Revolut, Chase).`;
+                        }
+                    } else if (data.connected) {
+                        badge.innerText = 'Linked';
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
                 }
             } catch (e) {
                 // silent
