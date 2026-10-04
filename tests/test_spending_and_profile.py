@@ -143,7 +143,7 @@ def test_copilot_session_reset():
 
     # Process query with reset_session=True
     copilot = AICopilotEngine()
-    with patch.object(copilot.llm, "generate", return_value="Fresh response"):
+    with patch.object(copilot, "is_configured", return_value=True), patch.object(copilot.llm, "generate", return_value="Fresh response"):
         res = copilot.process_query("What is my emergency fund buffer?", reset_session=True)
         assert res == "Fresh response"
 
