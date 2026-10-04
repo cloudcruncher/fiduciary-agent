@@ -1,5 +1,8 @@
+import hashlib
 import json
+import re
 import sqlite3
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -134,6 +137,26 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(booking_date);
     CREATE INDEX IF NOT EXISTS idx_nw_date ON net_worth_snapshots(snapshot_date);
     CREATE INDEX IF NOT EXISTS idx_traces_ts ON llm_traces(timestamp);
+
+    CREATE TABLE IF NOT EXISTS statement_batches (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        file_hash_sha256 TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        bank_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        opening_balance REAL,
+        closing_balance REAL,
+        total_inflows REAL DEFAULT 0.0,
+        total_outflows REAL DEFAULT 0.0,
+        calculated_delta REAL DEFAULT 0.0,
+        discrepancy REAL DEFAULT 0.0,
+        reconciliation_status TEXT DEFAULT 'PENDING',
+        transactions_count INTEGER DEFAULT 0,
+        imported_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_batch_account ON statement_batches(account_id);
+    CREATE INDEX IF NOT EXISTS idx_batch_imported ON statement_batches(imported_at);
     """)
 
     # Safe column migrations on existing accounts table if upgrading
@@ -143,6 +166,14 @@ def init_db():
         cursor.execute("ALTER TABLE accounts ADD COLUMN asset_class TEXT DEFAULT 'cash'")
     if "notes" not in existing_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN notes TEXT")
+
+    # Safe column migrations on transactions table for provenance and raw description
+    cursor.execute("PRAGMA table_info(transactions)")
+    existing_trans_cols = [row[1] for row in cursor.fetchall()]
+    if "statement_batch_id" not in existing_trans_cols:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN statement_batch_id TEXT")
+    if "raw_description" not in existing_trans_cols:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN raw_description TEXT")
 
     # Safe column migration on llm_traces for judge evaluation and tool observability
     cursor.execute("PRAGMA table_info(llm_traces)")
@@ -284,43 +315,124 @@ def classify_transaction(name: str, desc: str, raw_cat: str, amt: float) -> str:
         return "Debt Repayment"
     return "General Living Spend"
 
-def insert_transactions(account_id: str, transactions: List[Dict[str, Any]]):
+def generate_tx_fingerprint(account_id: str, booking_date: str, amount: float, description: str) -> str:
+    """Generates an immutable deterministic content hash for a transaction to guarantee idempotent ingestion."""
+    norm_desc = re.sub(r"\s+", " ", (description or "").strip().lower())
+    payload = f"{account_id}|{booking_date}|{amount:.2f}|{norm_desc}".encode("utf-8")
+    return f"tx_{hashlib.sha256(payload).hexdigest()[:16]}"
+
+def insert_transactions(account_id: str, transactions: List[Dict[str, Any]], batch_id: Optional[str] = None):
     conn = get_connection()
     cursor = conn.cursor()
     for tx in transactions:
-        tx_id = f"{account_id}_{tx.get('transaction_id', '') or tx.get('id', '')}"
+        raw_id = tx.get("transaction_id", "") or tx.get("id", "")
         amt = float(tx.get("amount", 0.0))
         name = tx.get("counterparty_name", "")
         desc = tx.get("description", "")
         raw_cat = tx.get("category", "General")
+        booking_date = str(tx.get("booking_date", ""))
         smart_cat = classify_transaction(name, desc, raw_cat, amt)
+
+        if raw_id and not raw_id.startswith(f"{account_id}_"):
+            tx_id = f"{account_id}_{raw_id}"
+        elif raw_id:
+            tx_id = raw_id
+        else:
+            tx_id = generate_tx_fingerprint(account_id, booking_date, amt, desc or name)
+
+        b_id = batch_id or tx.get("statement_batch_id")
 
         cursor.execute("""
         INSERT INTO transactions (
             id, account_id, transaction_id, booking_date, amount, currency,
-            counterparty_name, description, category, is_recurring
+            counterparty_name, description, category, is_recurring, statement_batch_id, raw_description
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             amount = excluded.amount,
             booking_date = excluded.booking_date,
+            counterparty_name = excluded.counterparty_name,
             description = excluded.description,
             category = excluded.category,
-            is_recurring = excluded.is_recurring
+            is_recurring = excluded.is_recurring,
+            statement_batch_id = COALESCE(excluded.statement_batch_id, transactions.statement_batch_id),
+            raw_description = COALESCE(excluded.raw_description, transactions.raw_description)
         """, (
             tx_id,
             account_id,
-            tx.get("transaction_id"),
-            tx.get("booking_date"),
+            tx.get("transaction_id") or tx_id,
+            booking_date,
             amt,
             tx.get("currency", "GBP"),
             name,
             desc,
             smart_cat,
-            1 if tx.get("is_recurring") else 0
+            1 if tx.get("is_recurring") else 0,
+            b_id,
+            tx.get("raw_description") or desc
         ))
     conn.commit()
     conn.close()
+
+def record_statement_batch(batch: Dict[str, Any]) -> str:
+    """Records an ingestion batch with cryptographic hash and reconciliation metrics."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    batch_id = batch.get("id") or f"batch_{uuid.uuid4().hex[:12]}"
+    now = datetime.now().isoformat()
+    cursor.execute("""
+    INSERT INTO statement_batches (
+        id, filename, file_hash_sha256, file_type, bank_id, account_id,
+        opening_balance, closing_balance, total_inflows, total_outflows,
+        calculated_delta, discrepancy, reconciliation_status, transactions_count, imported_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+        opening_balance = excluded.opening_balance,
+        closing_balance = excluded.closing_balance,
+        total_inflows = excluded.total_inflows,
+        total_outflows = excluded.total_outflows,
+        calculated_delta = excluded.calculated_delta,
+        discrepancy = excluded.discrepancy,
+        reconciliation_status = excluded.reconciliation_status,
+        transactions_count = excluded.transactions_count,
+        imported_at = excluded.imported_at
+    """, (
+        batch_id,
+        batch.get("filename", "unknown"),
+        batch.get("file_hash_sha256", ""),
+        batch.get("file_type", "pdf"),
+        batch.get("bank_id", "unknown"),
+        batch.get("account_id", ""),
+        batch.get("opening_balance"),
+        batch.get("closing_balance"),
+        batch.get("total_inflows", 0.0),
+        batch.get("total_outflows", 0.0),
+        batch.get("calculated_delta", 0.0),
+        batch.get("discrepancy", 0.0),
+        batch.get("reconciliation_status", "PENDING"),
+        batch.get("transactions_count", 0),
+        now
+    ))
+    conn.commit()
+    conn.close()
+    return batch_id
+
+def get_statement_batches(limit: int = 20) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM statement_batches ORDER BY imported_at DESC LIMIT ?", (limit,))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def get_statement_batch_by_id(batch_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM statement_batches WHERE id = ?", (batch_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def get_recent_transactions(
     days: Optional[int] = 30,

@@ -214,3 +214,49 @@ def test_pdf_upload_api_single_amounts():
     assert data["transactions_imported"] == 3
 
 
+def test_natwest_layout_multi_line_and_same_day_dates():
+    """Verifies NatWest-style layout with omitted same-day dates, multi-line narratives, and footer bounds."""
+    parser = PDFStatementParser()
+    statement_text = """
+    NatWest Bank
+    Previous Balance £1000.00
+    New Balance £1150.00
+    Date   Description                       Paid In(£) Withdrawn(£) Balance(£)
+    01 SEP 2026 BROUGHT FORWARD                                1000.00
+           Card Transaction 9573 31AUG26 EE TOPUP
+           EE.CO.UK GB                                  10.00    990.00
+           Direct Debit PAYPAL PAYMENT                  40.00    950.00
+    02 SEP Automated Credit SALARY EMPLOYER    300.00          1250.00
+           Direct Debit BRITISH GAS                    100.00  1150.00
+    Interest (variable) you currently pay us on overdrawn balances
+    When you stay within your arranged overdraft limit 33.75% NAR
+    """
+    txs, cbal = parser._extract_transactions_regex(statement_text, 2026, opening_balance=1000.00)
+    assert len(txs) == 4
+    assert cbal == 1150.00
+
+    # EE topup
+    assert txs[0]["date"] == "2026-09-01"
+    assert txs[0]["amount"] == -10.00
+    assert "EE TOPUP" in txs[0]["description"]
+
+    # Paypal
+    assert txs[1]["date"] == "2026-09-01"
+    assert txs[1]["amount"] == -40.00
+
+    # Salary
+    assert txs[2]["date"] == "2026-09-02"
+    assert txs[2]["amount"] == 300.00
+
+    # British Gas
+    assert txs[3]["date"] == "2026-09-02"
+    assert txs[3]["amount"] == -100.00
+
+    inflows = sum(t["amount"] for t in txs if t["amount"] > 0)
+    outflows = sum(abs(t["amount"]) for t in txs if t["amount"] < 0)
+    assert inflows == 300.00
+    assert outflows == 150.00
+    assert round(1000.00 + inflows - outflows, 2) == 1150.00
+
+
+

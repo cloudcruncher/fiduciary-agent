@@ -1025,11 +1025,12 @@ def cmd_judge(args):
     from fiduciary.observability.judge import LLMJudge
     from fiduciary.observability.tracer import get_recent_traces
 
-    judge = LLMJudge()
-    available, provider, model = judge.is_judge_available()
+    req_model = getattr(args, "model", None)
+    judge = LLMJudge(default_model=req_model)
+    available, provider, model = judge.is_judge_available(requested_model=req_model)
     if not available:
         console.print(f"[bold red]❌ Independent Judge Offline:[/bold red] {model}")
-        console.print("[dim]Ensure Ollama is running (`ollama serve`) with gemma:7b or mistral:7b.[/dim]")
+        console.print("[dim]Ensure Ollama is running (`ollama serve`). Recommended: `ollama pull llama3.2:3b`.[/dim]")
         return
 
     trace_id = getattr(args, "trace_id", None)
@@ -1041,7 +1042,7 @@ def cmd_judge(args):
         trace_id = traces[0]["id"]
 
     console.print(f"[bold cyan]⚖️ Evaluating Trace {trace_id} using Independent Judge ({model})...[/bold cyan]")
-    res = judge.evaluate_trace(trace_id)
+    res = judge.evaluate_trace(trace_id, judge_model=req_model)
 
     if res.get("status") == "ERROR":
         console.print(f"[bold red]❌ Judge Evaluation Error:[/bold red] {res.get('error')}")
@@ -1049,11 +1050,23 @@ def cmd_judge(args):
 
     verdict_style = "bold green" if res.get("verdict") == "PASSED" else ("bold yellow" if res.get("verdict") == "WARNING" else "bold red")
 
+    pre_audit = res.get("deterministic_audit", {})
+    audit_block = ""
+    if pre_audit:
+        v_figs = ", ".join(pre_audit.get("verified_figures", [])) or "None"
+        uv_figs = ", ".join(pre_audit.get("unverified_figures", [])) or "None (100% grounded)"
+        audit_block = f"""
+[bold cyan]Deterministic Fact-Checking Pre-Pass:[/bold cyan]
+  • Grounding Status: {pre_audit.get('status')} ({pre_audit.get('grounding_score', 1.0) * 100:.0f}% verified)
+  • Verified Data Points: {v_figs}
+  • Unverified Claims: {uv_figs}
+"""
+
     content = f"""[bold]Trace ID:[/bold] {res.get('trace_id')}
 [bold]Judge Model:[/bold] {res.get('judge_model')} ({res.get('judge_latency_ms', 0):.0f} ms)
 [bold]Overall Score:[/bold] [{verdict_style}]{res.get('overall_score', 0):.2f} / 1.00[/{verdict_style}]
 [bold]Verdict:[/bold] [{verdict_style}]{res.get('verdict')}[/{verdict_style}]
-
+{audit_block}
 [bold cyan]Metric Breakdown:[/bold cyan]
   • [bold]Faithfulness / Grounding:[/bold] {res.get('faithfulness', 0):.2f} / 1.00
   • [bold]Relevance & Completeness:[/bold] {res.get('relevance', 0):.2f} / 1.00
@@ -1211,6 +1224,7 @@ def build_parser():
     p_judge = subparsers.add_parser("judge", aliases=["eval", "j"], help="Evaluate AI Copilot outputs using independent local model (LLM-as-a-Judge)")
     p_judge.add_argument("trace_id", nargs="?", help="Specific trace ID to evaluate (defaults to latest)")
     p_judge.add_argument("--latest", action="store_true", help="Evaluate the most recent AI trace")
+    p_judge.add_argument("--model", "-m", help="Override judge model (e.g. llama3.2:3b, gemma2:2b)")
     p_judge.set_defaults(func=cmd_judge)
 
     # tools (alias: tl, catalog)

@@ -29,6 +29,7 @@ LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
 LMSTUDIO_MODEL = os.getenv("LMSTUDIO_MODEL", "local-llama")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:4b")
+FIDUCIARY_JUDGE_MODEL = os.getenv("FIDUCIARY_JUDGE_MODEL", "llama3.2:3b")
 
 # Enterprise AI Gateway / LiteLLM Proxy / Portkey:
 # e.g., "http://localhost:4000/v1" or "https://gateway.ai.cloudflare.com/v1/..."

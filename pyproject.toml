@@ -17,6 +17,7 @@ dependencies = [
     "google-genai>=2.26.0",
     "pypdf>=6.19.0",
     "litellm[proxy]>=1.103.2",
+    "pdfplumber>=0.11.10",
 ]
 
 [project.scripts]

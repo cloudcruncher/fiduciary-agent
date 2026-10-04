@@ -143,20 +143,21 @@
                 <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
                     <pre class="mermaid text-xs">
 flowchart TB
-    subgraph INGESTION["1. INGESTION &amp; PRIVACY LAYER"]
-        PDF["UK Bank PDF Statements<br/>(NatWest, Barclays, HSBC)"] --> PDFP["On-Device PDF Parser<br/>(pypdf in-memory extraction)"]
-        CSV["Bank CSV Exports<br/>(Revolut, Chase, Lloyds)"] --> CSVP["CSV Banking Importer"]
+    subgraph INGESTION["1. INGESTION, LINEAGE &amp; PRIVACY LAYER"]
+        PDF["UK Bank PDF Statements<br/>(NatWest, Barclays, HSBC)"] --> PDFP["On-Device PDF Parser<br/>(pdfplumber + pypdf engine)<br/>• Same-day date propagation<br/>• Multi-line narrative buffer<br/>• Running balance delta signing"]
+        CSV["Bank CSV Exports<br/>(Revolut, Chase, Lloyds)"] --> CSVP["CSV Banking Importer<br/>• UK Date Normalisation"]
         TL["TrueLayer Open Banking API<br/>(Read-Only Account Token)"] --> TLP["TrueLayer Sync Client"]
         WISE["Wise Multi-Currency API<br/>(Direct Read-Only Token)"] --> WCL["Wise Sync Client"]
         
-        PDFP --> PII["PII Privacy Shield<br/>• Sort Code: ••-••-XX<br/>• Account: ••••XXXX"]
-        CSVP --> PII
+        PDFP --> RECON["Double-Entry Invariant Engine<br/>• Opening + Inflows - Outflows ≡ Closing<br/>• SHA-256 Batch Provenance Hash<br/>• Idempotent Tx Fingerprinting"]
+        CSVP --> RECON
+        RECON --> PII["PII Privacy Shield<br/>• Sort Code: ••-••-XX<br/>• Account: ••••XXXX"]
         TLP --> PII
         WCL --> PII
     end
 
     subgraph STORAGE["2. LOCAL AIR-GAPPED STORAGE"]
-        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)<br/>• credit_profile (CRA Scores &amp; Electoral Roll)")]
+        PII --> DB[("SQLite Engine (data/financial.db)<br/>• accounts<br/>• transactions<br/>• statement_batches (Lineage &amp; Discrepancies)<br/>• recurring_bills<br/>• net_worth_snapshots<br/>• llm_traces<br/>• oauth_tokens (90d Refresh Tokens)<br/>• credit_profile (CRA Scores &amp; Electoral Roll)")]
     end
 
     subgraph CORE["3. DETERMINISTIC PYTHON CORE (ZERO MATH HALLUCINATION)"]
@@ -197,7 +198,7 @@ flowchart TB
         GEMINI -.-> AUDIT
 
         AUDIT --> TRACE["Observability Logger<br/>• Latency (ms)<br/>• Grounding Score<br/>• llm_traces Table"]
-        TRACE -.->|"On demand: ./f judge"| JUDGE["Layer 2: LLM-as-a-Judge<br/>(Ollama :11434 with think: false)<br/>• Faithfulness / Relevance / Fiduciary<br/>• Auto-unloaded after evaluation"]
+        TRACE -.->|"On demand: ./f judge"| JUDGE["Layer 2: Dedicated SLM Judge<br/>(Llama 3.2 3B on Metal GPU)<br/>• Independent Grounded Critic<br/>• Two-Stage Fact Pre-Audit<br/>• Auto-unloaded (keep_alive: 0)"]
         JUDGE -.->|"judge_result_json"| TRACE
     end
 
@@ -316,26 +317,29 @@ sequenceDiagram
                     </div>
                 </div>
 
-                <!-- Sequence Diagram 3: LLM-as-a-Judge -->
+                <!-- Sequence Diagram 3: Dedicated SLM Judge -->
                 <div class="space-y-2 pt-4">
-                    <h4 class="font-bold text-xs text-amber-400 uppercase tracking-wider">C. On-Demand LLM-as-a-Judge Evaluation (16GB-Safe)</h4>
+                    <h4 class="font-bold text-xs text-amber-400 uppercase tracking-wider">C. Independent SLM Judge Evaluation (Llama 3.2 3B on Metal GPU)</h4>
                     <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
                         <pre class="mermaid text-xs">
 sequenceDiagram
     autonumber
     actor User as User (./f judge)
     participant Judge as LLMJudge (judge.py)
-    participant Ollama as Local Ollama (:11434 / Metal GPU)
+    participant Auditor as GroundingAuditor (Fact Pre-Audit)
+    participant Llama as Llama 3.2 3B (Ollama / Metal GPU)
     participant DB as SQLite (llm_traces)
 
     User->>Judge: Evaluate latest trace (./f judge)
     Judge->>DB: Load query, ground-truth context, copilot response
-    Judge->>Ollama: POST /api/generate (format: json, think: false, keep_alive: 0, num_ctx: 4096)
-    Note over Ollama: Evaluates independently with think: false.<br/>Unloaded from RAM immediately after answering (keep_alive: 0).
-    Ollama-->>Judge: JSON: Faithfulness (1.0), Relevance (1.0), Fiduciary Soundness (1.0), Verdict: PASSED
-    Judge->>Judge: Overall Score = 0.45 F + 0.35 S + 0.20 R = 1.00
+    Judge->>Auditor: Audit verified vs unverified numeric claims
+    Auditor-->>Judge: Grounding verdict & verified figures
+    Judge->>Llama: POST /api/generate (format: json, think: false, keep_alive: 0, num_ctx: 4096)
+    Note over Llama: Evaluates independently with temp 0.0.<br/>Unloaded from RAM immediately after answering (keep_alive: 0).
+    Llama-->>Judge: JSON: Faithfulness, Precision, Fiduciary Prudence, Actionability
+    Judge->>Judge: Overall Score = 0.40 F + 0.30 P + 0.20 S + 0.10 A
     Judge->>DB: UPDATE llm_traces SET judge_result_json
-    Judge-->>User: ⚖️ LLM-AS-A-JUDGE VERDICT: PASSED (Overall: 1.00)
+    Judge-->>User: ⚖️ SLM JUDGE VERDICT: PASSED (Overall: 1.00)
                         </pre>
                     </div>
                 </div>

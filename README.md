@@ -162,8 +162,16 @@ When you are ready to transition from synthetic demo data to your real finances:
    ```
 3. Run `./f connect` or click **`🏦 Connect Bank`** in the web dashboard. Complete the standard UK Open Banking mobile app authentication.
 
-### 3. PDF & CSV Bank Statement Importer
-Drop any NatWest, Revolut, Chase, or HSBC PDF/CSV statement into the drag-and-drop importer at `http://localhost:8080`. Statements are parsed in memory, sanitized through the PII Privacy Shield, and stored directly in your local SQLite database.
+### 3. PDF & CSV Bank Statement Importer (Lead Data Engineering Pipeline)
+Drop any NatWest, Barclays, Revolut, Chase, or HSBC PDF/CSV statement into the drag-and-drop importer at `http://localhost:8080` or ingest via API:
+- **Closed-Loop Double-Entry Accounting Invariant**: Every statement undergoes mathematical reconciliation: $\text{Opening Balance} + \text{Inflows} - \text{Outflows} \equiv \text{Closing Balance}$. Batches are marked `RECONCILED` only if discrepancy is £0.00.
+- **Cryptographic Provenance & Lineage**: SHA-256 batch fingerprints (`statement_batches` table) and deterministic transaction hashes (`generate_tx_fingerprint(account_id, date, amount, desc)`) guarantee idempotent de-duplication across overlapping statements.
+- **Layout-Aware UK Parsing Engine**: Solves real-world statement challenges (e.g. NatWest):
+  - *Same-Day Date Statefulness*: Propagates booking dates when banks leave date columns blank on subsequent transactions on the same day.
+  - *Multi-Line Narrative Buffering*: Seamlessly accumulates descriptions that wrap across 2–3 lines before amount columns.
+  - *Running Balance Delta Signing*: Computes signed transaction amounts directly from running balance deltas ($\Delta = B_i - B_{i-1}$), guaranteeing 100% sign precision for debits and credits.
+  - *Legal & Overdraft Boundary Bounds*: Strict stop conditions eliminate phantom charges from overdraft fee examples and legal terms.
+- **Automated PII Shielding & Categorization**: Sort codes and account numbers are masked (`••-••-30`, `••••7715`), and transactions are categorized into standard UK budget buckets.
 
 ### 4. Credit & Underwriter Affordability Engine (FCA MCOB 11)
 UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow affordability** rather than CRA bureau scores alone:
@@ -172,6 +180,19 @@ UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow af
 - **4.5x Mortgage Capacity**: Net borrowing capacity deducting committed debts, with 4.4% indicative 25-yr repayments and 7.5% BoE stress testing.
 - **Runway & Stress Simulator**: Comfortable vs Survival runway (cutting non-essentials), income shock, £1,500 emergency repair shock, and UK CPI inflation drag.
 - **Local CRA Tracking**: Air-gapped tracking for Experian (999), Equifax (1000), TransUnion (710), and Electoral Roll status.
+
+---
+
+## ⚖️ Independent SLM Evaluator (Dual-Model Local LLM-as-a-Judge)
+
+To guarantee 100% data trust and eliminate self-grading bias without overflowing 16GB unified memory on Apple Silicon:
+- **Model Role Separation**:
+  - **Generative Copilot**: `qwen3.5:4b` (3.4 GB) handles conversational synthesis, query understanding, and multi-turn planning.
+  - **Independent Grounded Critic**: `llama3.2:3b` (2.0 GB) serves strictly as an external auditor. Models never grade their own outputs.
+- **Two-Stage Grounded Critic Pipeline**:
+  1. *Stage 1: Deterministic Fact Pre-Audit*: The deterministic `GroundingAuditor` extracts every financial quantity cited in the Copilot's answer and verifies it against the SQLite ground-truth database.
+  2. *Stage 2: Independent SLM Evaluation*: The independent Llama 3.2 3B judge evaluates Faithfulness, Numerical Precision, Fiduciary Prudence, and Actionability (1–5 scale) under temperature 0.0 with JSON schema enforcement.
+- **Unified Memory Preservation (`keep_alive: 0`)**: Both models execute entirely on Apple Silicon Metal GPU via Ollama, unloading immediately after their turn to keep memory usage at ~0 MB idle.
 
 ---
 
@@ -208,7 +229,7 @@ AI_GATEWAY_MODEL="qwen3.5:4b"              # Target model / alias routed by prox
 
 ## 🧪 CI, Testing & Code Quality
 
-The repository includes a comprehensive test suite (61 tests) and automated CI pipeline:
+The repository includes a comprehensive test suite (69 tests) and automated CI pipeline:
 
 ```bash
 # Run full unit and integration test suite

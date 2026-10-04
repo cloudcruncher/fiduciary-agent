@@ -2574,8 +2574,26 @@ DASHBOARD_HTML = """
                 const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.status === 'success' || data.transactions_imported !== undefined) {
-                    status.className = 'text-xs mt-2 text-emerald-400 font-semibold';
-                    status.innerText = `✓ Successfully imported ${data.transactions_imported} transactions from ${data.bank_name}!`;
+                    const recStatus = data.reconciliation_status || 'IMPORTED';
+                    const isReconciled = recStatus === 'RECONCILED' || recStatus === 'CLOSING_BALANCE_VERIFIED';
+                    const recBadge = isReconciled
+                        ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">100% Reconciled (£0.00 Discrepancy)</span>`
+                        : (recStatus === 'UNRECONCILED_GAP'
+                            ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-semibold">⚠️ Unreconciled Gap (£${Math.abs(data.discrepancy || 0).toFixed(2)})</span>`
+                            : `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700 font-semibold">${recStatus}</span>`);
+
+                    status.className = 'text-xs mt-2 text-emerald-400 font-semibold space-y-1';
+                    status.innerHTML = `
+                        <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                            <span>✓ Imported ${data.transactions_imported} transactions from ${data.bank_name}</span>
+                            ${recBadge}
+                        </div>
+                        <div class="text-[11px] text-slate-400 font-normal">
+                            Inflows: <span class="text-emerald-400 font-semibold">+£${Number(data.total_inflows || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}</span> | 
+                            Outflows: <span class="text-rose-400 font-semibold">-£${Number(data.total_outflows || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}</span> | 
+                            Net Cashflow: <span class="text-slate-200 font-semibold">£${Number(data.calculated_delta || 0).toLocaleString('en-GB', {minimumFractionDigits: 2})}</span>
+                        </div>
+                    `;
                     input.value = '';
                     await fetchAllState();
                 } else if (data.detail || data.error) {
@@ -2901,19 +2919,30 @@ def clear_traces_api():
     clear_all_traces()
     return {"status": "cleared"}
 
+@app.get("/api/statement-batches")
+def get_statement_batches_api(limit: int = 20):
+    init_db()
+    from fiduciary.storage.db import get_statement_batches
+    return {"batches": get_statement_batches(limit=limit)}
+
 @app.post("/api/traces/{trace_id}/judge")
-def judge_trace_api(trace_id: str):
+def judge_trace_api(trace_id: str, model: Optional[str] = None):
     init_db()
     from fiduciary.observability.judge import LLMJudge
-    judge = LLMJudge()
+    judge = LLMJudge(default_model=model)
+    if model:
+        return judge.evaluate_trace(trace_id, judge_model=model)
     return judge.evaluate_trace(trace_id)
 
 @app.post("/api/traces/judge-latest")
-def judge_latest_trace_api():
+def judge_latest_trace_api(model: Optional[str] = None):
     init_db()
     from fiduciary.observability.judge import LLMJudge
-    judge = LLMJudge()
-    res = judge.evaluate_latest_trace()
+    judge = LLMJudge(default_model=model)
+    if model:
+        res = judge.evaluate_latest_trace(judge_model=model)
+    else:
+        res = judge.evaluate_latest_trace()
     return res or {"error": "No traces available to evaluate"}
 
 @app.get("/api/tools")
