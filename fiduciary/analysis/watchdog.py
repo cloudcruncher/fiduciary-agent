@@ -50,6 +50,18 @@ class FinancialWatchdog:
         "Refunds"
     ]
 
+    @staticmethod
+    def _normalize_merchant(name: str) -> str:
+        """Normalizes counterparty name by stripping bank noise, reference codes, and transaction suffixes."""
+        if not name:
+            return ""
+        n = name.strip()
+        n = re.sub(r'\b(VIA MOBILE|PYMT|FP\s+\d{2}/\d{2}/\d{2}|\bTPP\s+[A-Z0-9]+|\bBGC\b|\bCHQ\b).*$', '', n, flags=re.IGNORECASE)
+        n = re.sub(r'[A-Z0-9]{8,}.*$', '', n)
+        n = re.sub(r'[\*\-_,]+', ' ', n)
+        n = re.sub(r'\s+', ' ', n).strip()
+        return n or name.strip()
+
     def _is_subscription_merchant(self, name: str, category: str) -> bool:
         """Determines if a transaction counterparty is a legitimate recurring contract."""
         if category in self.EXCLUDED_CATEGORIES:
@@ -58,10 +70,10 @@ class FinancialWatchdog:
         name_lower = name.lower()
 
         # Reject transfers, topups, remittances, and refunds regardless of category
-        if any(k in name_lower for k in ["transfer", "remittance", "topup", "top up", "cheddar", "wise", "revolut", "payout", "refund"]):
+        if any(k in name_lower for k in ["transfer", "remittance", "topup", "top up", "cheddar", "wise", "revolut", "payout", "refund", "paypal"]):
             return False
 
-        if category == "Subscriptions & Software":
+        if category in ["Subscriptions & Software", "Utilities & Housing"]:
             return True
 
         for kw in self.KNOWN_SUBSCRIPTION_KEYWORDS:
@@ -163,7 +175,11 @@ class FinancialWatchdog:
     def _detect_and_sync_bills(self, txs: List[Dict[str, Any]]):
         """
         Identifies genuine active recurring subscriptions.
-        Strict rule: Must be classified as Subscriptions/Utilities OR match subscription keyword.
+        Strict rule: Must have repeated at least 2 times (2 distinct dates) in the last 90-120 days
+        with a recognizable cadence (weekly, bi-weekly, monthly, annual), OR be an explicit bank
+        Direct Debit / Standing Order mandate.
+        First payments / one-off transactions (e.g. DVLA licence, one-time fees) are NOT assumed
+        to be recurring contracts.
         Must have been charged within the last 45 days to be ACTIVE.
         """
         merchant_history = defaultdict(list)
@@ -172,19 +188,30 @@ class FinancialWatchdog:
             amt = float(tx.get("amount", 0.0))
             if amt >= 0:
                 continue
-            name = (tx.get("counterparty_name") or tx.get("description") or "").strip()
+            raw_name = (tx.get("counterparty_name") or tx.get("description") or "").strip()
+            norm_name = self._normalize_merchant(raw_name)
             date_str = tx.get("booking_date")
             cat = tx.get("category", "")
-            if not date_str or not name:
+            if not date_str or not norm_name:
                 continue
 
-            # Skip general discretionary spend
-            if not self._is_subscription_merchant(name, cat):
+            # Skip discretionary or excluded categories
+            if cat in self.EXCLUDED_CATEGORIES:
+                continue
+
+            name_lower = norm_name.lower()
+            if any(k in name_lower for k in ["transfer", "remittance", "topup", "top up", "cheddar", "wise", "revolut", "payout", "refund", "paypal", "robin "]):
                 continue
 
             try:
                 dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
-                merchant_history[name].append({"date": dt, "amount": abs(amt), "raw_tx": tx})
+                merchant_history[norm_name].append({
+                    "date": dt,
+                    "amount": abs(amt),
+                    "raw_tx": tx,
+                    "raw_name": raw_name,
+                    "cat": cat
+                })
             except Exception:
                 continue
 
@@ -197,28 +224,53 @@ class FinancialWatchdog:
             last_rec = records[-1]
             days_since_last = (now.date() - last_rec["date"].date()).days
 
-            expected_amt = round(last_rec["amount"], 2)
-            bill_id = f"bill_{re.sub(r'[^a-zA-Z0-9]', '_', name.lower())[:24]}"
+            # Unique billing dates across history
+            unique_dates = sorted(list({r["date"].date() for r in records}))
 
-            # Determine interval
+            # Check if this merchant is an explicit Direct Debit or Standing Order
+            is_explicit_mandate = any(
+                re.search(r'\b(direct debit|dd|standing order|so)\b', (r["raw_tx"].get("description", "") + " " + r["raw_name"]).lower())
+                for r in records
+            )
+
+            # REPEAT REQUIREMENT:
+            # Must repeat at least twice (>=2 distinct dates) across the observation window,
+            # UNLESS it is an authorized Direct Debit / Standing Order mandate.
+            # A single card purchase (first payment) is NOT flagged as an active contract.
+            if len(unique_dates) < 2 and not is_explicit_mandate:
+                continue
+
+            # Determine interval and cadence
             interval = 30
             frequency = "monthly"
-            if len(records) >= 2:
-                prev_rec = records[-2]
-                days_diff = (last_rec["date"] - prev_rec["date"]).days
-                if 6 <= days_diff <= 8:
+            if len(unique_dates) >= 2:
+                intervals = [(unique_dates[i] - unique_dates[i-1]).days for i in range(1, len(unique_dates))]
+                avg_diff = sum(intervals) / len(intervals) if intervals else 30
+                if 5 <= avg_diff <= 10:
                     frequency = "weekly"
                     interval = 7
-                elif 350 <= days_diff <= 380:
+                elif 11 <= avg_diff <= 18:
+                    frequency = "bi-weekly"
+                    interval = 14
+                elif 20 <= avg_diff <= 45:
+                    frequency = "monthly"
+                    interval = 30
+                elif 340 <= avg_diff <= 390:
                     frequency = "annual"
                     interval = 365
+                else:
+                    # Irregular interval (not a predictable subscription cadence)
+                    if not self._is_subscription_merchant(name, last_rec["cat"]) and not is_explicit_mandate:
+                        continue
 
+            expected_amt = round(last_rec["amount"], 2)
+            bill_id = f"bill_{re.sub(r'[^a-zA-Z0-9]', '_', name.lower())[:24]}"
             next_date = last_rec["date"] + timedelta(days=interval)
 
             bill_data = {
                 "id": bill_id,
                 "merchant": name,
-                "category": last_rec["raw_tx"].get("category", "Subscriptions & Software"),
+                "category": last_rec["cat"] or "Subscriptions & Software",
                 "expected_amount": expected_amt,
                 "frequency": frequency,
                 "last_date": last_rec["date"].strftime("%Y-%m-%d"),

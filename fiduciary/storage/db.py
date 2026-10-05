@@ -339,30 +339,81 @@ def get_all_accounts() -> List[Dict[str, Any]]:
 def classify_transaction(name: str, desc: str, raw_cat: str, amt: float) -> str:
     """
     Intelligently maps merchant names and descriptions into standardized UK fiduciary categories.
+    Uses regex word boundaries to prevent substring collisions (e.g. 'rent' in 'Brentford').
     """
     text = f"{name or ''} {desc or ''} {raw_cat or ''}".lower()
     if amt > 0:
-        if any(k in text for k in ["topup", "top up", "payment from", "transfer from", "salary", "payroll"]):
+        if any(re.search(pat, text) for pat in [r'\btopup\b', r'\btop up\b', r'\bpayment from\b', r'\btransfer from\b', r'\bsalary\b', r'\bpayroll\b', r'\bstanding order from\b']):
             return "Income & Top-ups"
-        if "refund" in text:
+        if "refund" in text or "reversal" in text:
             return "Refunds"
         return "Income / Inflows"
 
-    # Outflows:
-    if any(k in text for k in ["sainsbury", "tesco", "m&s", "whole food", "welcome", "bakery", "aldi", "lidl", "asda", "morrison", "co-op", "waitrose", "grocery"]):
-        return "Groceries & Essentials"
-    if any(k in text for k in ["pub", "tavern", "arms", "hound", "pizza", "cluck", "evelyn", "cat", "pkb", "wheatsheaf", "hammerton", "greyhound", "deliveroo", "uber eats", "restaurant", "cafe", "bar", "food", "fringe", "tap on the line", "blackfriar", "youngs"]):
-        return "Dining, Pubs & Entertainment"
-    if any(k in text for k in ["anthropic", "claude", "openai", "chatgpt", "spotify", "netflix", "lemon squeezy", "github", "cursor", "aws", "google storage", "apple.com/bill", "adobe"]):
+    # 1. Utilities & Housing (Checked first to avoid misclassifying energy/council direct debits as generic transfers)
+    utility_patterns = [
+        r'\bswitch2\b', r'\bbritish gas\b', r'\bthames water\b', r'\boctopus\b', r'\bedf\b', r'\be\.?on\b',
+        r'\bwater\b', r'\bcouncil tax\b', r'\bhounslow\b', r'\blondon borough\b', r'\bborough of\b', r'\btv licence\b', r'\bpropco',
+        r'\brent\b', r'\bmortgage\b', r'\bee topup\b', r'\bvirgin media\b', r'\bbroadband\b', r'\bsevern trent\b',
+        r'\bscottish power\b', r'\bovo energy\b', r'\btelecom\b', r'\bvoda(fone)?\b'
+    ]
+    if any(re.search(pat, text) for pat in utility_patterns):
+        return "Utilities & Housing"
+
+    # 2. Subscriptions & Software
+    sub_patterns = [
+        r'\banthropic\b', r'\bclaude\b', r'\bopenai\b', r'\bchatgpt\b', r'\bspotify\b', r'\bnetflix\b',
+        r'\blemon squeezy\b', r'\bgithub\b', r'\bcursor\b', r'\baws\b', r'\bgoogle storage\b', r'\bgoogle one\b',
+        r'\bapple\.com/bill\b', r'\badobe\b', r'\bdisney\b', r'\byoutube\b', r'\bamazon prime\b', r'\bpuregym\b',
+        r'\bthe gym\b', r'\bgym group\b', r'\bicloud\b', r'\bdropbox\b', r'\bdigitalocean\b', r'\bvercel\b'
+    ]
+    if any(re.search(pat, text) for pat in sub_patterns):
         return "Subscriptions & Software"
-    if any(k in text for k in ["fee", "assets fee", "charge", "interest"]):
-        return "Fees & Charges"
-    if any(k in text for k in ["cheddar", "transfer", "remittance", "inr", "wise", "revolut", "topup", "own account"]):
-        return "Transfers & Remittance"
-    if any(k in text for k in ["tram", "tfl", "train", "uber", "transport", "rail"]):
+
+    # 3. Groceries & Essentials
+    groc_patterns = [
+        r'\bsainsbury', r'\btesco\b', r'\bm&s\b', r'\bmarks and spencer\b', r'\bwhole food', r'\bwelcome\b',
+        r'\bbakery\b', r'\baldi\b', r'\blidl\b', r'\basda\b', r'\bmorrison', r'\bco-?op\b', r'\bwaitrose\b',
+        r'\bgrocery\b', r'\bsupermarket\b', r'\bboots\b', r'\bpharmacy\b', r'\bchemist\b', r'\biceland\b'
+    ]
+    if any(re.search(pat, text) for pat in groc_patterns):
+        return "Groceries & Essentials"
+
+    # 4. Dining, Pubs & Entertainment
+    dining_patterns = [
+        r'\bpub\b', r'\btavern\b', r'\barms\b', r'\bhound\b', r'\bpizza\b', r'\bcluck\b', r'\bevelyn\b',
+        r'\bcat\b', r'\bpkb\b', r'\bwheatsheaf\b', r'\bhammerton\b', r'\bgreyhound\b', r'\bdeliveroo\b',
+        r'\buber eats\b', r'\bjust eat\b', r'\brestaurant\b', r'\bcafe\b', r'\bbar\b', r'\bfood\b', r'\bfringe\b',
+        r'\btap on the line\b', r'\bblackfriar\b', r'\byoungs', r'\bwetherspoon\b', r'\bnando', r'\bdishoom\b',
+        r'\bpret\b', r'\bcoffee\b', r'\bstarbucks\b', r'\bcosta\b', r'\bcinema\b', r'\bthe came'
+    ]
+    if any(re.search(pat, text) for pat in dining_patterns):
+        return "Dining, Pubs & Entertainment"
+
+    # 5. Transport & Commute
+    transport_patterns = [
+        r'\btfl\b', r'\btransport for london\b', r'\btram\b', r'\btrain\b', r'\buber\b', r'\btransport\b',
+        r'\brail\b', r'\bdvla\b', r'\bdriving licence\b', r'\bpetrol\b', r'\bshell\b', r'\bbp\b', r'\besso\b',
+        r'\btexaco\b', r'\bparking\b', r'\bringgo\b', r'\bbolt\b', r'\btrainline\b', r'\bzipcar\b'
+    ]
+    if any(re.search(pat, text) for pat in transport_patterns):
         return "Transport & Commute"
-    if any(k in text for k in ["barclaycard", "amex", "american express", "capital one", "mbna", "loan", "klarna", "clearpay"]):
+
+    # 6. Debt Repayment
+    debt_patterns = [
+        r'\bbarclaycard\b', r'\bamex\b', r'\bamerican express\b', r'\bcapital one\b', r'\bmbna\b',
+        r'\bcredit card\b', r'\bloan\b', r'\bklarna\b', r'\bclearpay\b', r'\bmastercard\b', r'\bmonzo flex\b'
+    ]
+    if any(re.search(pat, text) for pat in debt_patterns):
         return "Debt Repayment"
+
+    # 7. Fees & Charges
+    if any(re.search(pat, text) for pat in [r'\bassets fee\b', r'\bfee\b', r'\bcharge\b', r'\binterest\b']):
+        return "Fees & Charges"
+
+    # 8. Transfers & Remittance
+    if any(re.search(pat, text) for pat in [r'\bcheddar\b', r'\btransfer\b', r'\bremittance\b', r'\binr\b', r'\bwise\b', r'\brevolut\b', r'\btopup\b', r'\bown account\b', r'\brobin\b', r'\brobin sa?ini\b']):
+        return "Transfers & Remittance"
+
     return "General Living Spend"
 
 def generate_tx_fingerprint(account_id: str, booking_date: str, amount: float, description: str) -> str:
