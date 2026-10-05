@@ -462,6 +462,25 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
+                <!-- AI Enrichment Active Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/25 text-xs">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-emerald-400 text-sm">✨</span>
+                        <span class="font-semibold text-slate-100">AI Transaction Intelligence Active</span>
+                        <span class="text-slate-400 hidden sm:inline">• Multi-tier entity resolution, L1/L2/L3 taxonomy, and HMRC tax tagging enabled.</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <a href="/business" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-300 text-[11px] font-medium transition inline-flex items-center space-x-1">
+                            <span>Business Capabilities</span>
+                            <span class="text-[9px]">↗</span>
+                        </a>
+                        <a href="/business#interactive-playground" target="_blank" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-medium transition inline-flex items-center space-x-1">
+                            <span>Test API Playground</span>
+                            <span class="text-[9px]">↗</span>
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Filters Bar -->
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
                     <div class="sm:col-span-4">
@@ -496,9 +515,10 @@ DASHBOARD_HTML = """
                             <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
                                 <th class="py-2.5">Date</th>
                                 <th class="py-2.5">Bank</th>
-                                <th class="py-2.5">Counterparty / Merchant</th>
-                                <th class="py-2.5">Category</th>
+                                <th class="py-2.5">Enriched Merchant</th>
+                                <th class="py-2.5">Taxonomy &amp; Tags</th>
                                 <th class="py-2.5 text-right">Amount</th>
+                                <th class="py-2.5 text-center">AI Intel</th>
                             </tr>
                         </thead>
                         <tbody id="tx-table-body" class="divide-y divide-slate-800/40">
@@ -1812,6 +1832,81 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
+    <!-- AI TRANSACTION ENRICHMENT INSPECTOR MODAL -->
+    <div id="ai-enrichment-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+                <div class="flex items-center space-x-3">
+                    <div id="modal-enrich-icon" class="w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center text-xl">🏢</div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h3 id="modal-enrich-merchant" class="font-bold text-base text-white">Merchant Name</h3>
+                            <span id="modal-enrich-source" class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-semibold uppercase tracking-wider">Deterministic (&lt;0.05ms)</span>
+                        </div>
+                        <p id="modal-enrich-type" class="text-xs text-slate-400">Merchant Type</p>
+                    </div>
+                </div>
+                <button onclick="closeEnrichmentModal()" class="text-slate-400 hover:text-white px-2 py-1 text-base">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4 text-xs overflow-y-auto max-h-[75vh]">
+                <!-- Raw Statement Line -->
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">Raw Bank Ledger Narrative</span>
+                    <span id="modal-enrich-raw" class="font-mono text-slate-300 break-all text-xs">RAW STATEMENT STRING</span>
+                </div>
+
+                <!-- 3-Tier Taxonomy Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Level-1 Macro Category</span>
+                        <div id="modal-enrich-l1" class="font-bold text-slate-200">Category L1</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Level-2 Domain</span>
+                        <div id="modal-enrich-l2" class="font-bold text-slate-200">Category L2</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Level-3 Specific</span>
+                        <div id="modal-enrich-l3" class="font-bold text-emerald-400">Category L3</div>
+                    </div>
+                </div>
+
+                <!-- Entity Resolution Details -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Payment Rail &amp; Channel</span>
+                        <div id="modal-enrich-rail" class="font-semibold text-slate-300">POS In-Store Contactless</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Official Web Domain</span>
+                        <div id="modal-enrich-domain" class="font-mono text-emerald-400">domain.com</div>
+                    </div>
+                </div>
+
+                <!-- HMRC Tax Classification -->
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold block mb-0.5">UK HMRC Tax Deductibility</span>
+                        <div id="modal-enrich-tax-text" class="text-slate-300">Allowable sole-trader/business expense</div>
+                    </div>
+                    <span id="modal-enrich-tax-badge" class="px-2 py-1 rounded text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✓ Deductible</span>
+                </div>
+
+                <!-- Fiduciary Insight -->
+                <div class="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+                    <span class="text-[10px] text-emerald-400 uppercase font-semibold block mb-0.5">Autonomous Fiduciary Commentary</span>
+                    <p id="modal-enrich-insight" class="text-emerald-200/90 leading-relaxed text-xs">Commentary goes here.</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-950/80 flex justify-between items-center text-xs text-slate-400">
+                <span class="text-[11px]">3-Tier AI Financial Engine: Sub-millisecond entity resolution.</span>
+                <button onclick="closeEnrichmentModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-white">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentData = null;
         let selectedActions = new Set();
@@ -2716,15 +2811,43 @@ DASHBOARD_HTML = """
                         : `-£${Math.abs(t.amount).toFixed(2)}`;
                     const amountClass = isCredit ? 'text-emerald-400 font-bold' : 'text-slate-200 font-medium';
 
-                    const merchantName = t.counterparty_name || t.description || 'Unknown Counterparty';
+                    const cleanName = t.clean_merchant_name || t.counterparty_name || t.description || 'Unknown Counterparty';
+                    const rawNarrative = t.raw_description || t.counterparty_name || t.description || '';
                     const isPending = (t.status || '').toLowerCase() === 'pending';
                     const pendingBadge = isPending
-                        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">Pending</span>`
+                        ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">Pending</span>`
                         : '';
-                    const subText = t.account_name ? `<span class="text-[10px] text-slate-500 block">${t.account_name}</span>` : '';
+                    const taxBadge = t.hmrc_tax_deductible
+                        ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" title="HMRC Allowable Business Expense">✓ Tax Relief</span>`
+                        : '';
+                    const contractBadge = t.is_contractual
+                        ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30" title="Recurring Contractual Commitment">Contract</span>`
+                        : '';
+
+                    const domainHtml = t.merchant_domain
+                        ? `<a href="https://${t.merchant_domain}" target="_blank" class="text-[10px] text-emerald-400 hover:underline font-mono ml-1">(${t.merchant_domain})</a>`
+                        : '';
+
+                    const rawSubtitle = (rawNarrative && rawNarrative.toLowerCase() !== cleanName.toLowerCase())
+                        ? `<span class="text-[10px] text-slate-500 block font-mono truncate max-w-xs" title="${rawNarrative}">Raw: ${rawNarrative}</span>`
+                        : (t.account_name ? `<span class="text-[10px] text-slate-500 block">${t.account_name}</span>` : '');
+
+                    const categoryBadge = `
+                        <div class="space-y-0.5">
+                            <span class="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 text-[10px] font-medium inline-block">
+                                ${t.category_l1 || t.category || 'General'}
+                            </span>
+                            ${t.category_l2 && t.category_l2 !== t.category_l1 ? `<span class="text-[9px] text-slate-400 block">${t.category_l2}</span>` : ''}
+                        </div>
+                    `;
+
+                    // Store transaction object on window._txStore map for modal access
+                    if (!window._txStore) window._txStore = {};
+                    const txKey = 'tx_' + (t.id || (Math.random().toString(36).substring(2, 9)));
+                    window._txStore[txKey] = t;
 
                     return `
-                        <tr class="hover:bg-slate-850/60 transition text-xs">
+                        <tr class="hover:bg-slate-850/60 transition text-xs border-b border-slate-800/30">
                             <td class="py-2.5 font-mono text-slate-400 whitespace-nowrap text-[11px]">${t.booking_date || 'N/A'}</td>
                             <td class="py-2.5 whitespace-nowrap">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">
@@ -2732,19 +2855,25 @@ DASHBOARD_HTML = """
                                 </span>
                             </td>
                             <td class="py-2.5 font-medium text-slate-200">
-                                <div class="flex items-center space-x-1.5">
-                                    <span>${merchantName}</span>
+                                <div class="flex items-center space-x-1.5 flex-wrap">
+                                    <span class="font-bold text-slate-100">${cleanName}</span>
+                                    ${domainHtml}
                                     ${pendingBadge}
+                                    ${contractBadge}
+                                    ${taxBadge}
                                 </div>
-                                ${subText}
+                                ${rawSubtitle}
                             </td>
                             <td class="py-2.5 text-slate-400 text-[11px]">
-                                <span class="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 text-[10px]">
-                                    ${t.category || 'General'}
-                                </span>
+                                ${categoryBadge}
                             </td>
                             <td class="py-2.5 text-right font-mono text-xs ${amountClass} whitespace-nowrap">
                                 ${amountFormatted}
+                            </td>
+                            <td class="py-2.5 text-center whitespace-nowrap">
+                                <button onclick="openEnrichmentModal('${txKey}')" class="px-2 py-1 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1 mx-auto" title="Inspect 3-Tier AI Entity Resolution & Fiduciary Insights">
+                                    <span>🔍 AI</span>
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -2753,12 +2882,47 @@ DASHBOARD_HTML = """
                 console.error("Failed to load transactions feed:", err);
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="py-4 text-center text-rose-400 text-xs">
+                        <td colspan="6" class="py-4 text-center text-rose-400 text-xs">
                             ⚠️ Error loading transactions feed: ${err}
                         </td>
                     </tr>
                 `;
             }
+        }
+
+        function openEnrichmentModal(txKey) {
+            const tx = (window._txStore && window._txStore[txKey]) ? window._txStore[txKey] : null;
+            if (!tx) return;
+
+            document.getElementById('modal-enrich-merchant').innerText = tx.clean_merchant_name || tx.counterparty_name || tx.description || 'Unknown Merchant';
+            document.getElementById('modal-enrich-raw').innerText = tx.raw_description || tx.counterparty_name || tx.description || 'N/A';
+            document.getElementById('modal-enrich-type').innerText = `${tx.merchant_type || 'Commercial Entity'} • ${tx.merchant_domain ? tx.merchant_domain : 'Verified'}`;
+            document.getElementById('modal-enrich-domain').innerHTML = tx.merchant_domain
+                ? `<a href="https://${tx.merchant_domain}" target="_blank" class="hover:underline flex items-center gap-1 text-emerald-400">${tx.merchant_domain} ↗</a>`
+                : 'Not available';
+            document.getElementById('modal-enrich-l1').innerText = tx.category_l1 || tx.category || 'General';
+            document.getElementById('modal-enrich-l2').innerText = tx.category_l2 || 'Standard';
+            document.getElementById('modal-enrich-l3').innerText = tx.category_l3 || 'General Spend';
+            document.getElementById('modal-enrich-rail').innerText = `${tx.payment_channel || 'Card Payment Rail'} ${tx.is_contractual ? '• (Contract Mandate)' : ''}`;
+            
+            const isTax = !!tx.hmrc_tax_deductible;
+            document.getElementById('modal-enrich-tax-badge').className = isTax
+                ? 'px-2 py-1 rounded text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'px-2 py-1 rounded text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700';
+            document.getElementById('modal-enrich-tax-badge').innerText = isTax ? '✓ HMRC Deductible' : 'Non-Deductible Personal';
+            document.getElementById('modal-enrich-tax-text').innerText = tx.tax_category || (isTax ? 'Allowable business / sole-trader expense under HMRC rules' : 'Standard personal living spend');
+            document.getElementById('modal-enrich-insight').innerText = tx.action_insight || 'Transaction verified under fiduciary classification rules.';
+
+            const src = tx.enrichment_source || 'deterministic_rule';
+            document.getElementById('modal-enrich-source').innerText = src === 'cache_hit'
+                ? 'Cache Hit (<0.1ms)'
+                : (src === 'smart_model' ? 'Smart Model (Gemini 2.5 Flash)' : 'Deterministic Knowledge (<0.05ms)');
+
+            document.getElementById('ai-enrichment-modal').classList.remove('hidden');
+        }
+
+        function closeEnrichmentModal() {
+            document.getElementById('ai-enrichment-modal').classList.add('hidden');
         }
 
         function switchScoutTab(tab) {
@@ -4118,9 +4282,37 @@ def get_transactions(
     category: Optional[str] = None
 ):
     init_db()
+    from fiduciary.enrichment.engine import EnrichmentEngine
+    from fiduciary.enrichment.models import TransactionInput
     from fiduciary.storage.db import get_transaction_analytics
     txs = get_recent_transactions(days=days, account_id=account, limit=limit, search=search, category=category)
     analytics = get_transaction_analytics(days=days or 30)
+
+    # Attach instant 3-tier transaction intelligence to each record
+    engine = EnrichmentEngine()
+    for t in txs:
+        raw_narrative = t.get("raw_description") or t.get("counterparty_name") or t.get("description") or ""
+        amt = float(t.get("amount", 0.0))
+        enriched = engine.enrich_single(TransactionInput(
+            raw_narrative=raw_narrative,
+            amount=amt,
+            currency=t.get("currency", "GBP"),
+            booking_date=t.get("booking_date")
+        ))
+        t["clean_merchant_name"] = enriched.clean_merchant.name
+        t["merchant_domain"] = enriched.clean_merchant.domain
+        t["merchant_logo"] = enriched.clean_merchant.logo_url
+        t["merchant_type"] = enriched.clean_merchant.merchant_type
+        t["category_l1"] = enriched.enrichment.category_l1
+        t["category_l2"] = enriched.enrichment.category_l2
+        t["category_l3"] = enriched.enrichment.category_l3
+        t["payment_channel"] = enriched.enrichment.payment_channel
+        t["is_contractual"] = enriched.enrichment.is_contractual_commitment
+        t["hmrc_tax_deductible"] = enriched.fiduciary_insights.hmrc_tax_deductible
+        t["tax_category"] = enriched.fiduciary_insights.tax_category
+        t["action_insight"] = enriched.fiduciary_insights.action_insight
+        t["enrichment_source"] = enriched.source
+
     return {
         "transactions": txs,
         "analytics": analytics
