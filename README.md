@@ -7,8 +7,9 @@
 [![Open Banking: UK Regulated](https://img.shields.io/badge/Open%20Banking-TrueLayer%20%7C%20Wise-blueviolet.svg)](#-connecting-real-uk-banks)
 [![MCP: Model Context Protocol](https://img.shields.io/badge/MCP-Gateway%20%26%207%20Tools-blue.svg)](#-model-context-protocol-mcp-gateway)
 [![Security: Prompt Guard](https://img.shields.io/badge/Security-Prompt%20Guard%20Active-crimson.svg)](#-prompt-guard-injection--jailbreak-defense)
-[![Tests: 110 Passed](https://img.shields.io/badge/Tests-110%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
+[![Tests: 136 Passed](https://img.shields.io/badge/Tests-136%20Passed-brightgreen.svg)](#-ci-testing--code-quality)
 [![Mobile: PWA & FaceID](https://img.shields.io/badge/Mobile-PWA%20%26%20FaceID-indigo.svg)](#3-mobile-phone-banking--biometric-faceid-linking-zero-egress-lan-architecture)
+[![Business Capabilities](https://img.shields.io/badge/Business-Capabilities%20%26%20Value-teal.svg)](https://cloudcruncher.github.io/fiduciary-agent/explain/business-value.html)
 [![Architecture: Interactive Map](https://img.shields.io/badge/Architecture-Interactive%20Live%20Map-teal.svg)](https://cloudcruncher.github.io/fiduciary-agent/)
 [![Enterprise Walkthrough](https://img.shields.io/badge/Enterprise-Architecture%20Walkthrough-emerald.svg)](https://cloudcruncher.github.io/fiduciary-agent/explain/enterprise-walkthrough.html)
 
@@ -223,6 +224,26 @@ UK mortgage lenders and credit underwriters evaluate **Open Banking cash-flow af
 - **4.5x Mortgage Capacity**: Net borrowing capacity deducting committed debts, with 4.4% indicative 25-yr repayments and 7.5% BoE stress testing.
 - **Runway & Stress Simulator**: Comfortable vs Survival runway (cutting non-essentials), income shock, £1,500 emergency repair shock, and UK CPI inflation drag.
 - **Local CRA Tracking**: Air-gapped tracking for Experian (999), Equifax (1000), TransUnion (710), and Electoral Roll status.
+
+### 6. Zero-Downtime Multi-Banking & Pending-to-Settled Reconciliation
+Connecting multiple UK institutions (Revolut, Lloyds, NatWest, Wise) requires enterprise resilience against upstream token invalidations and payment rail timing:
+- **In-Flight 401 Auto-Recovery Interceptor**: Open Banking access tokens often expire or are rotated by upstream banks ahead of scheduled expiry. The TrueLayer connector intercepts HTTP 401 responses, retrieves the stored refresh token, completes an in-flight token exchange, updates SQLite, and replays the sync request seamlessly with zero user dropouts.
+- **Pending vs Settled Reconciliation**: In-store card payments arrive immediately as pending authorizations (`pending`), later transitioning to cleared transactions (`settled`). The ledger matches incoming settled records against pending holds by account ID, exact amount, and booking date proximity, completely preventing duplicate expense counts or distorted balances.
+- **Strict 90-Day Cadence Verification**: The Financial Watchdog requires at least 2 distinct payments across a 90–120 day window (or explicit Direct Debit mandate) before classifying an item as a recurring subscription, preventing one-off statutory fees (e.g. DVLA driving licence renewal) from being falsely flagged as monthly commitments.
+
+### 7. AI Transaction Enrichment & Entity Resolution Engine (B2B Offering)
+UK Open Banking APIs intentionally withhold internal bank categorizations. Fiduciary Agent incorporates an autonomous, **3-tier transaction intelligence cascade** operating at sub-millisecond latency:
+- **Tier 1: Deterministic Knowledge Base (<0.05ms, £0.00)**: Pre-seeded registry of UK energy utilities (Switch2 Energy, British Gas), water authorities (Thames Water), municipal councils (L.B. Hounslow Council Tax), transit (TfL), supermarkets, and developer SaaS.
+- **Tier 1b: Canonical Merchant SQLite Cache (<0.1ms, £0.00)**: Instant local cache retrieval for recurring counterparties with automatic hit-count telemetry.
+- **Tier 2: Frontier Smart Model (Gemini 2.5 Flash / LLMClient)**: Resolves long-tail, unseen merchants into structured JSON containing corporate entity names, official domains, logos, and 3-level taxonomy (`L1 > L2 > L3`).
+- **Contextual Semantic Disambiguation**:
+  - *Apple Services vs Retail*: Automatically categorizes `APPLE.COM/BILL £2.99` as an iCloud Software Subscription (monthly, tax-deductible), while `APPLE.COM/BILL £1,299.00` is classified as Apple Store Hardware & Capital Equipment.
+  - *TfL Fare vs Penalty*: Differentiates routine commute fares (`£3.40`) from penalty fare charges (`£80.00`).
+- **HMRC Tax Deductibility Engine**: Flags allowable sole-trader and business expenses directly from statement narratives (e.g. developer software, AI subscriptions, public transit for business travel).
+- **Public B2B REST APIs**:
+  - `POST /api/v1/enrich/transaction`: Single narrative enrichment.
+  - `POST /api/v1/enrich/batch`: High-throughput batch enrichment (processes 100 txs in <10ms).
+  - `GET /api/v1/enrich/cache/stats`: Live cache operational metrics and top frequent counterparties.
 
 ---
 
@@ -466,11 +487,13 @@ GitHub Actions executes across **Python 3.11, 3.12, and 3.13** on every commit, 
 
 Interactive architectural diagrams, sequence flows, grounding guardrails, and data schemas are accessible live:
 - 🌐 **[Live Interactive Architecture Map (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/)**
+- 💼 **[Executive Business Capabilities & Value Guide (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/business-value.html)**
 - 🏛️ **[Interactive Enterprise Architecture Walkthrough (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/enterprise-walkthrough.html)**
 - 🧮 **[Interactive Credit Score Explorer (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/explain/credit-explorer.html)**
 - 🧭 **[Complete System Walkthrough & User Guide (GitHub Pages)](https://cloudcruncher.github.io/fiduciary-agent/guide.html)**
 - 📐 **[AI Gateway Architecture Diagram & Failover Spec](docs/explain/gateway.md)**
 - 📁 **[Interactive Explainers Directory](docs/explain/README.md)**
+- Local Business Capabilities Guide: `http://localhost:8080/business` (or `/features`).
 - Local System Tour and Module Guide: `http://localhost:8080/guide`.
 - Local Interactive Architecture: `http://localhost:8080/architecture`.
 

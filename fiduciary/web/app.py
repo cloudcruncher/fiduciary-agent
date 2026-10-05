@@ -3944,6 +3944,16 @@ def interview_prep_view():
             return HTMLResponse(content=f.read())
     raise HTTPException(status_code=404, detail="Interview prep guide not found")
 
+@app.get("/explain/business-value.html", response_class=HTMLResponse)
+@app.get("/business", response_class=HTMLResponse)
+@app.get("/features", response_class=HTMLResponse)
+def business_value_view():
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "explain", "business-value.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Business value guide not found")
+
 @app.get("/api/llm/status")
 def get_llm_status():
     from fiduciary.agent.llm_client import LLMClient
