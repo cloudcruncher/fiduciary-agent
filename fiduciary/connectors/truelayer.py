@@ -232,12 +232,31 @@ class TrueLayerClient:
         errors = []
 
         for item in valid_tokens:
+            p_key = item["provider"]
+            access_tok = item["access_token"]
             try:
-                res = self.sync_accounts(item["access_token"], provider_key=item["provider"])
+                res = self.sync_accounts(access_tok, provider_key=p_key)
                 all_synced_accounts.extend(res.get("accounts_synced", []))
                 total_txs += res.get("total_transactions", 0)
+            except requests.exceptions.HTTPError as he:
+                # If 401 Unauthorized, automatically attempt refresh & retry
+                if he.response is not None and he.response.status_code == 401:
+                    tok_data = get_oauth_tokens(p_key)
+                    ref_tok = tok_data.get("refresh_token") if tok_data else None
+                    if ref_tok:
+                        try:
+                            new_access_tok = self.refresh_access_token(ref_tok, provider_key=p_key)
+                            if new_access_tok:
+                                res = self.sync_accounts(new_access_tok, provider_key=p_key)
+                                all_synced_accounts.extend(res.get("accounts_synced", []))
+                                total_txs += res.get("total_transactions", 0)
+                                continue
+                        except Exception as refresh_err:
+                            errors.append(f"{p_key} (token refresh failed): {refresh_err}")
+                            continue
+                errors.append(f"{p_key}: {he}")
             except Exception as e:
-                errors.append(f"{item['provider']}: {e}")
+                errors.append(f"{p_key}: {e}")
 
         return {
             "status": "success" if all_synced_accounts else ("error" if errors else "empty"),
