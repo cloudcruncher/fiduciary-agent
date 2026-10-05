@@ -60,6 +60,9 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                 <a href="explain/enterprise-walkthrough.html" class="px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-400 rounded-lg border border-emerald-700/60 font-semibold transition">
                     🏛️ Enterprise Walkthrough
                 </a>
+                <a href="explain/interview-prep.html" class="px-3 py-1.5 bg-fuchsia-950/80 hover:bg-fuchsia-900/80 text-fuchsia-300 rounded-lg border border-fuchsia-700/60 font-semibold transition">
+                    🎯 Interview Prep
+                </a>
                 <a href="explain/credit-explorer.html" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 font-semibold transition">
                     🧮 Credit Explorer
                 </a>

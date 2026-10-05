@@ -272,4 +272,24 @@ def test_eval_benchmark_and_copilot_verification_api():
         assert "grounding_score" in chat_data["preflight_eval"]
 
 
+def test_explainer_documentation_endpoints():
+    """Verify that all explainer documentation pages load cleanly."""
+    res_walk = client.get("/explain/enterprise-walkthrough.html")
+    assert res_walk.status_code == 200
+    assert "Enterprise AI Architecture" in res_walk.text
+
+    res_credit = client.get("/explain/credit-explorer.html")
+    assert res_credit.status_code == 200
+    assert "Credit Score Explorer" in res_credit.text
+
+    res_prep = client.get("/explain/interview-prep.html")
+    assert res_prep.status_code == 200
+    assert "Enterprise AI Interview Guide" in res_prep.text
+
+    res_alias = client.get("/interview-prep")
+    assert res_alias.status_code == 200
+    assert "Layman's Understanding" in res_alias.text
+
+
+
 

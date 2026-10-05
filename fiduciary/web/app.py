@@ -3659,6 +3659,34 @@ def guide_view():
 def architecture_view():
     return HTMLResponse(content=ARCHITECTURE_HTML)
 
+@app.get("/explain/enterprise-walkthrough.html", response_class=HTMLResponse)
+@app.get("/enterprise-walkthrough", response_class=HTMLResponse)
+def enterprise_walkthrough_view():
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "explain", "enterprise-walkthrough.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Enterprise walkthrough not found")
+
+@app.get("/explain/credit-explorer.html", response_class=HTMLResponse)
+@app.get("/credit-explorer", response_class=HTMLResponse)
+def credit_explorer_view():
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "explain", "credit-explorer.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Credit explorer not found")
+
+@app.get("/explain/interview-prep.html", response_class=HTMLResponse)
+@app.get("/interview-prep", response_class=HTMLResponse)
+@app.get("/interview-guide", response_class=HTMLResponse)
+def interview_prep_view():
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "explain", "interview-prep.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Interview prep guide not found")
+
 @app.get("/api/llm/status")
 def get_llm_status():
     from fiduciary.agent.llm_client import LLMClient
