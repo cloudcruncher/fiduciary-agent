@@ -1,6 +1,11 @@
 """
 Observability, Distributed Tracing & Grounding Guardrails for Personal Fiduciary Agent.
 """
+from fiduciary.observability.benchmark import EvaluationBenchmarkSuite
+from fiduciary.observability.preflight_eval import (
+    PreFlightEvaluationResult,
+    PreFlightEvaluator,
+)
 from fiduciary.observability.tracer import (
     GroundingAuditor,
     clear_all_traces,
@@ -11,8 +16,12 @@ from fiduciary.observability.tracer import (
 
 __all__ = [
     "GroundingAuditor",
+    "PreFlightEvaluator",
+    "PreFlightEvaluationResult",
+    "EvaluationBenchmarkSuite",
     "record_llm_trace",
     "get_recent_traces",
     "clear_all_traces",
     "get_observability_metrics",
 ]
+

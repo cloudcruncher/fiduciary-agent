@@ -198,9 +198,18 @@ class ReActFiduciaryAgent:
         if deanonymize_map:
             final_answer = PIIAnonymizer.deanonymize(final_answer, deanonymize_map)
 
+        # 4. In-line Pre-Flight Self-Evaluation & Verification Gate
+        from fiduciary.observability.preflight_eval import PreFlightEvaluator
+        eval_res = PreFlightEvaluator.evaluate_and_guard(
+            user_query=query,
+            response=final_answer,
+            system_prompt=context or ""
+        )
+        final_answer = eval_res.response
+
         total_duration = round((time.perf_counter() - start_total) * 1000, 2)
 
-        # 4. Record trace to observability database
+        # 5. Record trace to observability database
         try:
             status = self.llm.get_status()
             record_llm_trace(
@@ -221,8 +230,10 @@ class ReActFiduciaryAgent:
             "steps": steps_trace,
             "total_duration_ms": total_duration,
             "tools_used": tools_executed,
-            "pii_anonymized": bool(deanonymize_map)
+            "pii_anonymized": bool(deanonymize_map),
+            "preflight_eval": eval_res.to_dict()
         }
+
 
     @staticmethod
     def _parse_react_response(text: str) -> ReActStepPayload:

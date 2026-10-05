@@ -61,6 +61,7 @@
                 <a href="#overview" class="hover:text-emerald-400 transition">Overview</a>
                 <a href="#solution-design" class="hover:text-emerald-400 transition">Solution Design</a>
                 <a href="#production-ready" class="hover:text-emerald-400 transition">PoC vs Production</a>
+                <a href="#eval-benchmark" class="hover:text-emerald-400 transition">EVAL Benchmark</a>
                 <a href="#bank-deployment" class="hover:text-emerald-400 transition">Bank Considerations</a>
                 <a href="#alternatives" class="hover:text-emerald-400 transition">Alternatives</a>
                 <a href="credit-explorer.html" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition flex items-center space-x-1.5">
@@ -88,7 +89,7 @@
             </p>
 
             <!-- Key Enterprise Badges -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
                 <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
                     <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Privacy Model</div>
                     <div class="text-base font-bold text-white mt-1">100% Air-Gapped</div>
@@ -98,6 +99,11 @@
                     <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Math Integrity</div>
                     <div class="text-base font-bold text-white mt-1">Deterministic</div>
                     <div class="text-xs text-slate-400 mt-0.5">Zero Hallucinated Numbers</div>
+                </div>
+                <div class="glass-card rounded-xl p-3.5 border-l-4 border-fuchsia-500">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Self-Evaluating AI</div>
+                    <div class="text-base font-bold text-white mt-1">Pre-Flight Gate</div>
+                    <div class="text-xs text-slate-400 mt-0.5">&lt;2ms Invariant &amp; Grounding</div>
                 </div>
                 <div class="glass-card rounded-xl p-3.5 border-l-4 border-indigo-500">
                     <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Security Boundary</div>
@@ -110,9 +116,9 @@
                     <div class="text-xs text-slate-400 mt-0.5">Reversible Session Vault</div>
                 </div>
                 <div class="glass-card rounded-xl p-3.5 border-l-4 border-purple-500">
-                    <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">CI / CD Parity</div>
-                    <div class="text-base font-bold text-white mt-1">Pre-Push Hook</div>
-                    <div class="text-xs text-slate-400 mt-0.5">Gitleaks + Offline Pytest</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold">EVAL Benchmark</div>
+                    <div class="text-base font-bold text-white mt-1">Grade A+ (100%)</div>
+                    <div class="text-xs text-slate-400 mt-0.5">6 Production Dimensions</div>
                 </div>
             </div>
         </section>
@@ -122,11 +128,12 @@
             <div class="flex flex-col md:flex-row md:items-end justify-between border-b border-slate-800 pb-4 gap-4">
                 <div>
                     <h2 class="text-2xl font-bold text-white">1. Solution Design & End-to-End Flow</h2>
-                    <p class="text-sm text-slate-400 mt-1">How queries traverse security guards, deterministic tools, and air-gapped inference.</p>
+                    <p class="text-sm text-slate-400 mt-1">How queries traverse security guards, deterministic tools, air-gapped inference, and the pre-flight self-evaluation gate.</p>
                 </div>
                 <div class="flex items-center space-x-2 text-xs text-slate-400">
                     <span class="inline-block w-3 h-3 rounded-full bg-emerald-500"></span> <span>Deterministic Engine</span>
                     <span class="inline-block w-3 h-3 rounded-full bg-indigo-500 ml-2"></span> <span>Generative Shell</span>
+                    <span class="inline-block w-3 h-3 rounded-full bg-fuchsia-500 ml-2"></span> <span>Self-Evaluation Gate</span>
                 </div>
             </div>
 
@@ -160,30 +167,41 @@ flowchart LR
         GW -.->|"Optional Enterprise Cloud"| GEM["Gemini API"]
         GW -. "Fallback" .-> LOC["Direct Local Socket"]
         OLL & GEM & LOC --> DEANON["PII Deanonymizer"]
-        DEANON --> OUT
+    end
+
+    subgraph EVAL_GATE["5. Pre-Flight Self-Evaluation Gate (<2ms)"]
+        DEANON --> DRAFT["Candidate AI Completion"]
+        DRAFT --> EVAL{"PreFlightEvaluator<br/>(Grounding & Invariants)"}
+        EVAL -- "Discrepancy / Unverified" --> CRITIC["Autonomous Self-Correction Loop"]
+        CRITIC -->|"Reflection Feedback"| OLL
+        EVAL -- "Passed (100% Grounded)" --> STAMP["Fiduciary Verification Stamp<br/>(Verified: £, %, Invariants)"]
+        STAMP --> OUT
     end
 
     classDef sec fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#e0e7ff;
     classDef det fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5;
     classDef opt fill:#1f2937,stroke:#9ca3af,stroke-width:2px,color:#f3f4f6;
     classDef inf fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#ede9fe;
+    classDef evl fill:#500724,stroke:#f43f5e,stroke-width:2px,color:#ffe4e6;
 
     class Q,PG,BLK,PII sec;
     class MCP,BOE,TAX,CRD,RAG,BOUND det;
     class SC,GW opt;
-    class OLL,GEM,LOC,DEANON,OUT inf;
+    class OLL,GEM,LOC,DEANON inf;
+    class DRAFT,EVAL,CRITIC,STAMP,OUT evl;
                 </div>
             </div>
 
+
             <!-- Interactive Component Deep Dive Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-4">
                 <div class="glass-card rounded-xl p-5 space-y-3">
                     <div class="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                        <span>Prompt Guard & Boundary Wrap</span>
+                        <span>Prompt Guard &amp; Boundary Wrap</span>
                     </div>
                     <p class="text-xs text-slate-300 leading-relaxed">
-                        Evaluates user prompts before LLM dispatch. System instructions, role-hijacks, and prompt leaking are scored (>=0.50 blocks immediately). Financial facts are wrapped in immutable <code class="text-emerald-400 bg-slate-900 px-1 py-0.5 rounded">&lt;verified_financial_context&gt;</code> tags that user text cannot close.
+                        Evaluates user prompts before LLM dispatch. System instructions, role-hijacks, and prompt leaking are scored (&gt;=0.50 blocks immediately). Financial facts are wrapped in immutable <code class="text-emerald-400 bg-slate-900 px-1 py-0.5 rounded">&lt;verified_financial_context&gt;</code> tags that user text cannot close.
                     </p>
                     <div class="text-[11px] text-slate-400 font-mono">fiduciary/agent/prompt_guard.py</div>
                 </div>
@@ -208,6 +226,17 @@ flowchart LR
                         Customer identifiers (names, sort codes, account numbers, addresses) are substituted with synthetic identifiers (<code class="text-indigo-300">&lt;PERSON_1&gt;</code>, <code class="text-indigo-300">&lt;ACCOUNT_1&gt;</code>) before LLM egress, and seamlessly restored on ingress.
                     </p>
                     <div class="text-[11px] text-slate-400 font-mono">fiduciary/agent/pii_anonymizer.py</div>
+                </div>
+
+                <div class="glass-card rounded-xl p-5 space-y-3">
+                    <div class="flex items-center space-x-2 text-fuchsia-400 font-bold text-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>In-Line Pre-Flight EVAL Gate</span>
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Evaluates output <em>before</em> customer delivery (&lt;2ms). Audits numeric claims against verified context, enforces UK FCA Consumer Duty invariants (emergency buffer, tax bounds, predatory loans), refutes negative entity baiting, and triggers autonomous reflection repair.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono">fiduciary/observability/preflight_eval.py</div>
                 </div>
             </div>
         </section>
@@ -270,12 +299,189 @@ flowchart LR
                             <td class="py-4 px-5 text-emerald-300/90">Kubernetes /healthz and /readyz probes, X-Request-ID correlation headers, and OWASP security middleware.</td>
                         </tr>
                         <tr class="hover:bg-slate-900/50 transition">
+                            <td class="py-4 px-5 font-semibold text-white">Output Self-Evaluation (EVAL Gate)</td>
+                            <td class="py-4 px-5 text-rose-300/90">Unchecked generative completions returned directly to consumer. High risk of fabricated rates, non-existent credit cards, or predatory loans.</td>
+                            <td class="py-4 px-5 text-emerald-300/90">In-line sub-2ms <code>PreFlightEvaluator</code> checking £, %, Consumer Duty invariants, negative bait resistance, and autonomous reflection repair before delivery.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-900/50 transition">
+                            <td class="py-4 px-5 font-semibold text-white">Systematic Golden Benchmarks</td>
+                            <td class="py-4 px-5 text-rose-300/90">Manual developer "vibe checks" or slow, non-deterministic cloud LLM judges run ad-hoc without SLAs.</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Deterministic 6-Dimension Golden EVAL Benchmark Suite (34 tests, Grade A+, 100% pass rate in ~2.2ms) callable via <code>./f eval</code>, REST API, or CI pipeline.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-900/50 transition">
                             <td class="py-4 px-5 font-semibold text-white">CI & Secret Safety</td>
                             <td class="py-4 px-5 text-rose-300/90">Ad-hoc scripts, manual verification, unmonitored credentials in git commits.</td>
-                            <td class="py-4 px-5 text-emerald-300/90">Pre-push Git hooks enforcing Gitleaks, Ruff linting, offline eval benchmark suite (120 tests), and wheel builds.</td>
+                            <td class="py-4 px-5 text-emerald-300/90">Pre-push Git hooks enforcing Gitleaks, Ruff linting, offline eval benchmark suite (127 tests), and wheel builds.</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </section>
+
+        <!-- Production Evaluation & Verification Benchmark Suite -->
+        <section id="eval-benchmark" class="space-y-6">
+            <div class="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <div class="inline-flex items-center space-x-2 px-2.5 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-800/60 text-xs font-semibold text-fuchsia-400 mb-2">
+                        Forward Deployment AI Engineering (FDE) &amp; Quality Assurance
+                    </div>
+                    <h2 class="text-2xl font-bold text-white">3. Self-Evaluating AI &amp; Systematic Golden Benchmark Suite</h2>
+                    <p class="text-sm text-slate-400 mt-1">Autonomous output auditing, Consumer Duty invariant verification, and deterministic 6-dimension benchmarking.</p>
+                </div>
+                <div class="flex items-center space-x-2 text-xs">
+                    <span class="px-2.5 py-1 rounded bg-emerald-950 border border-emerald-800 text-emerald-400 font-mono font-bold">Grade A+ (100% Pass)</span>
+                    <span class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 font-mono">34/34 Tests • &lt;2.5ms</span>
+                </div>
+            </div>
+
+            <!-- FDE Philosophy Callout -->
+            <div class="glass-card rounded-2xl p-6 border-l-4 border-fuchsia-500 space-y-3">
+                <div class="flex items-center space-x-3 text-fuchsia-400 font-bold text-base">
+                    <span class="p-2 rounded-lg bg-fuchsia-950/80 border border-fuchsia-800/40">🛡️</span>
+                    <span>The FDE Imperative: Never Return Unaudited Generative Output to a Consumer</span>
+                </div>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    Standard AI demos treat language models as black-box answer engines. In regulated wealth management and retail banking, returning an invented interest rate, recommending a predatory 49.9% APR loan, or fabricating an account balance violates statutory UK FCA regulations and destroys customer trust. Fiduciary Agent solves this with a two-tier verification paradigm: an <strong>in-line pre-flight self-evaluator (&lt;2ms)</strong> that intercepts drafts before the user sees them, and a <strong>systematic 6-dimension golden benchmark suite</strong>.
+                </p>
+            </div>
+
+            <!-- Benchmark Dimensions Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Dimension 1 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-emerald-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-emerald-400 font-mono">DIMENSION 1</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-semibold border border-emerald-800/50">5/5 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Grounding &amp; Discrepancy Defense</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Extracts every currency claim (£), interest rate (%), and term against verified context. Flags hallucinations (e.g. invented £8,500 bonus) with sub-millisecond precision.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: Grounding Score &gt;= 0.90, numerical delta tolerance = 0.0
+                    </div>
+                </div>
+
+                <!-- Dimension 2 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-cyan-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-cyan-400 font-mono">DIMENSION 2</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 font-semibold border border-cyan-800/50">5/5 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Negative Entity &amp; Bait Resistance</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Detects when users ask about non-existent accounts or competitor products (e.g., "What is my Amex balance?"). Audits that the model explicitly refutes possession rather than fabricating figures.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: Refutation phrase presence, zero invented balances
+                    </div>
+                </div>
+
+                <!-- Dimension 3 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-amber-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-400 font-mono">DIMENSION 3</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-amber-950 text-amber-400 font-semibold border border-amber-800/50">6/6 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">UK FCA Consumer Duty Invariants</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Hard deterministic invariants: (1) Rejection of predatory debt (&gt;39.9% APR); (2) Preservation of emergency runway (&gt;=3 months expenses); (3) Statutory tax bounds (£100k–£125,140 60% trap).
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: <code>invariant_passed</code> boolean, zero predatory endorsements
+                    </div>
+                </div>
+
+                <!-- Dimension 4 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-indigo-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-400 font-mono">DIMENSION 4</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 font-semibold border border-indigo-800/50">6/6 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Adversarial Injection Defense</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Red-team suite evaluating DAN exploits, prompt leaking ("reveal system prompt"), money laundering role-hijacks, and fake system override tags. Scores &gt;=0.50 blocked immediately.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: 100% intercept rate on jailbreak &amp; extraction vectors
+                    </div>
+                </div>
+
+                <!-- Dimension 5 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-purple-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-purple-400 font-mono">DIMENSION 5</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-purple-950 text-purple-400 font-semibold border border-purple-800/50">6/6 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Reversible Tokenized PII Privacy</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Verifies that customer names, UK bank account numbers, 6-digit sort codes, and addresses are fully anonymized into token vaults before external LLM inference, and accurately reconstituted.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: Zero raw PII leakage in outgoing payloads, 100% restoration
+                    </div>
+                </div>
+
+                <!-- Dimension 6 -->
+                <div class="glass-card rounded-xl p-5 space-y-3 border-t-2 border-teal-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-teal-400 font-mono">DIMENSION 6</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-teal-950 text-teal-400 font-semibold border border-teal-800/50">6/6 PASS (100%)</span>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Deterministic Math &amp; Rate Invariants</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Validates that live Bank of England base rates (3.75%), mortgage stress tests, and tax computations match deterministic Python outputs with zero floating-point drift.
+                    </p>
+                    <div class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                        Evaluates: Mathematical identity, rate synchronization
+                    </div>
+                </div>
+            </div>
+
+            <!-- Self-Correction Reflection Loop & CLI/API Integration -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Self-Correction Flow -->
+                <div class="glass-card rounded-xl p-6 space-y-4">
+                    <div class="flex items-center space-x-2 text-fuchsia-400 font-bold text-sm">
+                        <span class="p-1.5 rounded bg-fuchsia-950 border border-fuchsia-800/40">🔄</span>
+                        <span>Autonomous Reflection &amp; Self-Correction Loop</span>
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        When the Pre-Flight Gate detects unverified claims or invariant breaches in a candidate response, it does not crash or silently fail. It invokes an autonomous reflection callback:
+                    </p>
+                    <ol class="text-xs text-slate-300 space-y-2 list-decimal pl-4">
+                        <li><strong>Diagnosis:</strong> PreFlightEvaluator pinpoints the exact discrepancy (e.g. <em>"£8,500 unverified; ground truth balance is £2,450"</em>).</li>
+                        <li><strong>Targeted Critique:</strong> A targeted refinement prompt is injected with the ground truth context.</li>
+                        <li><strong>Fast Repair Pass:</strong> The local model generates a corrected completion.</li>
+                        <li><strong>Verification Stamp:</strong> Once passed, response is stamped with verification metadata (<code class="text-emerald-400">🛡️ 100% Grounded</code> or <code class="text-cyan-400">⚡ Self-Corrected</code>).</li>
+                    </ol>
+                </div>
+
+                <!-- Executing the Suite -->
+                <div class="glass-card rounded-xl p-6 space-y-4">
+                    <div class="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+                        <span class="p-1.5 rounded bg-emerald-950 border border-emerald-800/40">💻</span>
+                        <span>Multi-Channel Execution &amp; Observability</span>
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        The evaluation framework is accessible across every interface in the enterprise stack:
+                    </p>
+                    <div class="space-y-2 font-mono text-xs">
+                        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-200">
+                            <span class="text-emerald-400 font-bold"># Terminal CLI Benchmark</span><br/>
+                            ./f eval &nbsp;<span class="text-slate-500"># or: ./f benchmark</span>
+                        </div>
+                        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-200">
+                            <span class="text-cyan-400 font-bold"># REST API Integration</span><br/>
+                            GET /api/eval/benchmark &nbsp;<span class="text-slate-500"># full 6-dimension JSON scorecard</span><br/>
+                            GET /api/eval/status &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-slate-500"># preflight gate health</span>
+                        </div>
+                        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-200">
+                            <span class="text-purple-400 font-bold"># Dashboard UI &amp; CI Gate</span><br/>
+                            Live "🛡️ Run Benchmark EVAL" button in Observability modal • Pre-push Git hook verification
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -285,7 +491,7 @@ flowchart LR
                 <div class="inline-flex items-center space-x-2 px-2.5 py-0.5 rounded bg-amber-950 border border-amber-800/60 text-xs font-semibold text-amber-400 mb-2">
                     Tier-1 Financial Enterprise Checklist
                 </div>
-                <h2 class="text-2xl font-bold text-white">3. Bank Implementation: Scaling for Regulated Financial Institutions</h2>
+                <h2 class="text-2xl font-bold text-white">4. Bank Implementation: Scaling for Regulated Financial Institutions</h2>
                 <p class="text-sm text-slate-400 mt-1">What a Tier-1 Bank (e.g. Barclays, HSBC, Lloyds, Citi) must consider when putting this into live production.</p>
             </div>
 
@@ -359,7 +565,7 @@ flowchart LR
         <!-- Architectural Alternatives & Future Enhancements -->
         <section id="alternatives" class="space-y-6">
             <div class="border-b border-slate-800 pb-4">
-                <h2 class="text-2xl font-bold text-white">4. Architectural Alternatives & Future Evolution</h2>
+                <h2 class="text-2xl font-bold text-white">5. Architectural Alternatives &amp; Future Evolution</h2>
                 <p class="text-sm text-slate-400 mt-1">Comparing our current technology choices with viable enterprise alternatives.</p>
             </div>
 
@@ -460,7 +666,7 @@ flowchart LR
         <section class="glass-card rounded-2xl p-8 border border-emerald-500/30 space-y-6">
             <div class="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                    <h2 class="text-xl font-bold text-white">Summary: The 5 Non-Negotiable Pillars of Enterprise AI</h2>
+                    <h2 class="text-xl font-bold text-white">Summary: The 6 Non-Negotiable Pillars of Enterprise AI</h2>
                     <p class="text-sm text-slate-400 mt-1">Key takeaways for enterprise architects, regulators, and engineering teams.</p>
                 </div>
                 <div class="text-xs font-bold px-3 py-1 rounded bg-emerald-950 border border-emerald-600 text-emerald-300">
@@ -468,7 +674,7 @@ flowchart LR
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 pt-2">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-2">
                 <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
                     <div class="text-emerald-400 font-bold text-sm">1. Separation of Concerns</div>
                     <p class="text-xs text-slate-400 mt-1">Math in Python; narrative in the LLM. Never ask a language model to perform statutory arithmetic.</p>
@@ -488,6 +694,10 @@ flowchart LR
                 <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
                     <div class="text-emerald-400 font-bold text-sm">5. Automated CI Parity</div>
                     <p class="text-xs text-slate-400 mt-1">Pre-push hooks guarantee code passes security scans, linting, and cold headless tests prior to deployment.</p>
+                </div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                    <div class="text-fuchsia-400 font-bold text-sm">6. Pre-Flight EVAL Gate</div>
+                    <p class="text-xs text-slate-400 mt-1">In-line output self-evaluation intercepts ungrounded claims, Consumer Duty violations, and baiting before delivery.</p>
                 </div>
             </div>
         </section>

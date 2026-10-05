@@ -29,6 +29,24 @@ class AICopilotEngine:
 
     def __init__(self, api_key: Optional[str] = None):
         self.llm = LLMClient(gemini_key=api_key)
+        self.last_eval_result: Optional[Dict[str, Any]] = None
+
+    def _refine_response(self, critique_prompt: str, system_prompt: str, tools_executed: Optional[list] = None) -> str:
+        """Executes targeted self-correction refinement pass when pre-flight evaluation detects discrepancies."""
+        anonymized_critique, deanonymize_map = PIIAnonymizer.anonymize(critique_prompt)
+        refined = self.llm.generate(
+            prompt=anonymized_critique,
+            system_prompt=system_prompt,
+            temperature=0.1,
+            max_tokens=1000,
+            caller="copilot_self_correction",
+            tools_used=tools_executed,
+            bypass_cache=True
+        )
+        if deanonymize_map:
+            refined = PIIAnonymizer.deanonymize(refined, deanonymize_map)
+        return refined
+
 
     def is_configured(self) -> bool:
         return self.llm.get_status()["mode"] != "none"
@@ -58,8 +76,8 @@ class AICopilotEngine:
             "tax_audit": tax_audit
         }
 
-    def process_query(self, user_query: str, session_id: str = "default", reset_session: bool = False, use_react: bool = False) -> str:
-        """Processes a user question, saves to conversation history, and returns response."""
+    def process_query(self, user_query: str, session_id: str = "default", reset_session: bool = False, use_react: bool = False, return_details: bool = False) -> Any:
+        """Processes a user question, runs pre-flight self-evaluation & verification, saves to history, and returns response."""
         if reset_session:
             clear_chat_history(session_id=session_id)
 
@@ -445,13 +463,34 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
         conversation_context = ("\n\nRECENT CONVERSATION:\n" + "\n".join(formatted_history)) if formatted_history else ""
         prompt_with_history = f"{conversation_context}\n\nUSER QUERY: {user_query}\nASSISTANT:"
 
+        from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
         if use_react:
             from fiduciary.agent.react_agent import ReActFiduciaryAgent
             react_agent = ReActFiduciaryAgent(llm=self.llm, enable_pii_anonymization=True)
             res = react_agent.run(clean_query, context=wrapped_context)
             final_ans = res["answer"]
-            save_chat_message("assistant", final_ans, session_id=session_id)
-            return final_ans
+
+            eval_res = PreFlightEvaluator.evaluate_and_guard(
+                user_query=user_query,
+                response=final_ans,
+                system_prompt=wrapped_context,
+                refine_callback=(
+                    lambda critique: self._refine_response(critique, system_prompt, tools_executed)
+                    if self.is_configured() else None
+                )
+            )
+            guarded_ans = eval_res.response
+            self.last_eval_result = eval_res.to_dict()
+            save_chat_message("assistant", guarded_ans, session_id=session_id, metadata={"preflight_eval": self.last_eval_result})
+
+            if return_details:
+                return {
+                    "answer": guarded_ans,
+                    "eval": self.last_eval_result,
+                    "react_steps": res.get("steps", [])
+                }
+            return guarded_ans
 
         # Reversible PII anonymization before passing prompt to LLM
         anonymized_prompt, deanonymize_map = PIIAnonymizer.anonymize(prompt_with_history)
@@ -468,6 +507,26 @@ CLIENT VERIFIED GROUND TRUTH CONTEXT:
         if deanonymize_map:
             response_text = PIIAnonymizer.deanonymize(response_text, deanonymize_map)
 
-        save_chat_message("assistant", response_text, session_id=session_id)
-        return response_text
+        # In-line Pre-Flight Self-Evaluation & Verification Gate
+        eval_res = PreFlightEvaluator.evaluate_and_guard(
+            user_query=user_query,
+            response=response_text,
+            system_prompt=wrapped_context,
+            refine_callback=(
+                lambda critique: self._refine_response(critique, system_prompt, tools_executed)
+                if self.is_configured() else None
+            )
+        )
+        guarded_response = eval_res.response
+        self.last_eval_result = eval_res.to_dict()
+
+        save_chat_message("assistant", guarded_response, session_id=session_id, metadata={"preflight_eval": self.last_eval_result})
+
+        if return_details:
+            return {
+                "answer": guarded_response,
+                "eval": self.last_eval_result
+            }
+        return guarded_response
+
 

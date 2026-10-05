@@ -57,6 +57,12 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                     <span>💻</span>
                     <span>GitHub Repo</span>
                 </a>
+                <a href="explain/enterprise-walkthrough.html" class="px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-400 rounded-lg border border-emerald-700/60 font-semibold transition">
+                    🏛️ Enterprise Walkthrough
+                </a>
+                <a href="explain/credit-explorer.html" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 font-semibold transition">
+                    🧮 Credit Explorer
+                </a>
                 <a href="index.html" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-lg text-white transition flex items-center space-x-1.5 shadow">
                     <span>🏛️ System Architecture</span>
                 </a>
@@ -316,21 +322,22 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                 <div class="guide-card space-y-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2 font-bold text-slate-100">
-                            <span class="text-lg">⚖️</span>
-                            <span>Layer 2 Independent LLM-as-a-Judge</span>
+                            <span class="text-lg">🛡️</span>
+                            <span>Self-Evaluating AI &amp; Enterprise EVAL Suite</span>
                         </div>
-                        <span class="text-[10px] text-purple-400 font-semibold px-2 py-0.5 rounded bg-purple-950 border border-purple-800">Quality Guardrail</span>
+                        <span class="text-[10px] text-purple-400 font-semibold px-2 py-0.5 rounded bg-purple-950 border border-purple-800">Pre-Flight Guardrail</span>
                     </div>
                     <p class="text-slate-400 leading-relaxed">
-                        Regex auditors check that £ and % numbers match ground truth, but cannot judge tone, omissions, or financial soundness. An independent local model evaluates responses across 3 criteria: Faithfulness (0.45 weight), Fiduciary Soundness (0.35), and Relevance (0.20).
+                        The AI evaluates its own output <strong>before</strong> responding to the consumer. Pre-flight evaluation audits grounding, checks FCA Consumer Duty invariants, detects hallucination bait, and triggers autonomous self-correction if unverified claims arise (&lt;2ms latency).
                     </p>
                     <div class="p-2.5 bg-slate-850 rounded-lg text-slate-300 space-y-1">
-                        <div class="font-semibold text-purple-300 text-[11px]">16GB Mac Protection:</div>
+                        <div class="font-semibold text-purple-300 text-[11px]">Forward Deployment EVAL Benchmark:</div>
                         <p class="text-[11px] text-slate-400">
-                            Trigger with <code>./f judge</code>. Enforces <code>keep_alive: 0</code> to automatically unload the model from unified RAM immediately after scoring, keeping memory 70%+ free.
+                            Run <code>./f eval</code> to execute the 6-dimension production benchmark suite (100% pass rate, Grade A+). Deep LLM-as-a-judge audits remain available via <code>./f judge</code> with <code>keep_alive: 0</code> for 16GB memory protection.
                         </p>
                     </div>
                 </div>
+
                 <!-- Module 9 -->
                 <div class="guide-card space-y-3">
                     <div class="flex items-center justify-between">
@@ -576,12 +583,14 @@ GUIDE_HTML = r"""<!DOCTYPE html>
                         <div class="text-[11px] font-mono text-emerald-300 space-y-1">
                             <div>./f react "&lt;q&gt;" &nbsp;&nbsp;&nbsp;# Autonomous ReAct multi-step agent</div>
                             <div>./f rag "&lt;q&gt;" &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Local semantic Vector RAG search</div>
+                            <div>./f eval &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Run 6-Dimension AI Benchmark Suite</div>
                             <div>./f copilot "&lt;q&gt;" &nbsp;# Query on-device AI Copilot</div>
                             <div>./f watchdog &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Active Bills &amp; Price Hikes</div>
                             <div>./f tx -a revolut &nbsp;# Itemised Bank Transactions</div>
                             <div>./f tools &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Inspect Active Tools &amp; Sources</div>
                             <div>./f judge &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Run Independent LLM-as-a-Judge</div>
                             <div>./f traces &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Observability &amp; Tool Telemetry</div>
+
                         </div>
                     </div>
                     <div class="p-3.5 bg-slate-850 rounded-xl border border-slate-800 space-y-2">

@@ -1628,6 +1628,9 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
+                    <button id="btn-run-benchmark" onclick="runBenchmarkUI()" class="px-2.5 py-1 bg-purple-950/70 hover:bg-purple-900 border border-purple-800 text-purple-300 text-xs rounded-lg transition font-medium flex items-center gap-1" title="Run full 6-dimension institutional AI Evaluation Benchmark suite">
+                        <span>🛡️ Run Benchmark EVAL</span>
+                    </button>
                     <button onclick="toggleToolsCatalogUI()" class="px-2.5 py-1 bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs rounded-lg transition font-medium flex items-center gap-1" title="Inspect available deterministic and live web tools">
                         <span>🛠️ Tools Catalog</span>
                     </button>
@@ -1638,6 +1641,22 @@ DASHBOARD_HTML = """
                     <button onclick="closeTracesModal()" class="text-slate-400 hover:text-white px-2 py-1">✕</button>
                 </div>
             </div>
+
+            <!-- Benchmark results drawer -->
+            <div id="benchmark-results-panel" class="hidden p-4 bg-slate-950/95 border-b border-slate-800 text-xs space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🛡️</span>
+                        <div>
+                            <h4 class="font-bold text-purple-300 text-xs uppercase tracking-wider">Enterprise Fiduciary AI Evaluation Benchmark</h4>
+                            <p class="text-[10px] text-slate-400">Forward Deployment Grade Evaluation across 6 core production dimensions</p>
+                        </div>
+                    </div>
+                    <div id="benchmark-summary-badges" class="flex items-center gap-2"></div>
+                </div>
+                <div id="benchmark-dimensions-grid" class="grid grid-cols-1 md:grid-cols-3 gap-2.5"></div>
+            </div>
+
 
             <!-- Tools catalog drawer -->
             <div id="tools-catalog-panel" class="hidden p-4 bg-slate-950/95 border-b border-slate-800 text-xs space-y-2.5">
@@ -2681,12 +2700,26 @@ DASHBOARD_HTML = """
                 const data = await res.json();
                 const container = document.getElementById('copilot-messages');
                 if (data.messages && data.messages.length > 0) {
-                    container.innerHTML = data.messages.map(m => `
-                        <div class="p-2.5 rounded-xl ${m.role === 'user' ? 'bg-purple-950/30 border border-purple-800/40 text-purple-200 ml-6' : 'bg-slate-800 text-slate-200 mr-6'}">
-                            <div class="font-bold text-[10px] mb-1 opacity-70">${m.role.toUpperCase()}</div>
-                            <div class="prose prose-invert max-w-none text-xs">${marked.parse(m.content)}</div>
-                        </div>
-                    `).join('');
+                    container.innerHTML = data.messages.map(m => {
+                        let evalBadge = '';
+                        if (m.role === 'assistant' && m.metadata && m.metadata.preflight_eval) {
+                            const pe = m.metadata.preflight_eval;
+                            const eStyle = pe.verdict === 'PASSED' ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300' : (pe.verdict === 'SELF_CORRECTED' ? 'bg-amber-950/80 border-amber-600 text-amber-300' : 'bg-amber-950/60 border-amber-700 text-amber-300');
+                            const icon = pe.verdict === 'PASSED' ? '🛡️' : (pe.verdict === 'SELF_CORRECTED' ? '⚡' : '⚠️');
+                            evalBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded border ${eStyle} font-medium flex items-center gap-1 cursor-help" title="Pre-Flight Self-Evaluation: ${pe.verdict} (${Math.round(pe.grounding_score*100)}% Grounded, ${pe.eval_latency_ms}ms)">${icon} ${pe.verdict === 'SELF_CORRECTED' ? 'Self-Corrected' : (pe.verdict === 'PASSED' ? '100% Grounded' : pe.verdict)}</span>`;
+                        }
+                        return `
+                            <div class="p-2.5 rounded-xl ${m.role === 'user' ? 'bg-purple-950/30 border border-purple-800/40 text-purple-200 ml-6' : 'bg-slate-800 text-slate-200 mr-6'}">
+                                <div class="font-bold text-[10px] mb-1 opacity-70 flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>${m.role.toUpperCase()}</span>
+                                        ${evalBadge}
+                                    </div>
+                                </div>
+                                <div class="prose prose-invert max-w-none text-xs">${marked.parse(m.content)}</div>
+                            </div>
+                        `;
+                    }).join('');
                     container.scrollTop = container.scrollHeight;
                 }
             } catch (e) {
@@ -2702,7 +2735,7 @@ DASHBOARD_HTML = """
                     <div>${query}</div>
                 </div>
                 <div class="p-2.5 rounded-xl bg-slate-800 text-slate-200 mr-6" id="loading-copilot-msg">
-                    <span class="animate-pulse">Consulting fiduciary intelligence...</span>
+                    <span class="animate-pulse">Consulting fiduciary intelligence & self-evaluating...</span>
                 </div>
             `;
             container.scrollTop = container.scrollHeight;
@@ -2716,10 +2749,24 @@ DASHBOARD_HTML = """
                 const data = await res.json();
                 document.getElementById('loading-copilot-msg').remove();
                 const badge = data.badge ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300 font-normal">${data.badge}</span>` : '';
+                
+                let evalBadge = '';
+                if (data.preflight_eval) {
+                    const pe = data.preflight_eval;
+                    const eStyle = pe.verdict === 'PASSED' ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300' : (pe.verdict === 'SELF_CORRECTED' ? 'bg-amber-950/80 border-amber-600 text-amber-300' : (pe.verdict === 'WARNING' ? 'bg-amber-950/60 border-amber-700 text-amber-300' : 'bg-rose-950/80 border-rose-700 text-rose-300'));
+                    const icon = pe.verdict === 'PASSED' ? '🛡️' : (pe.verdict === 'SELF_CORRECTED' ? '⚡' : '⚠️');
+                    const vFigs = pe.verified_figures && pe.verified_figures.length ? ` | Verified: ${pe.verified_figures.join(', ')}` : '';
+                    const title = `Grounding: ${Math.round(pe.grounding_score * 100)}% | Evaluated in ${pe.eval_latency_ms}ms${vFigs}`;
+                    evalBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded border ${eStyle} font-medium flex items-center gap-1 cursor-help" title="${title}">${icon} ${pe.verdict === 'SELF_CORRECTED' ? 'Self-Corrected' : (pe.verdict === 'PASSED' ? '100% Grounded' : pe.verdict)}</span>`;
+                }
+
                 container.innerHTML += `
                     <div class="p-2.5 rounded-xl bg-slate-800 text-slate-200 mr-6">
                         <div class="font-bold text-[10px] mb-1 opacity-70 flex items-center justify-between">
-                            <span>FIDUCIARY COPILOT</span>
+                            <div class="flex items-center gap-1.5">
+                                <span>FIDUCIARY COPILOT</span>
+                                ${evalBadge}
+                            </div>
                             ${badge}
                         </div>
                         <div class="prose prose-invert max-w-none text-xs">${marked.parse(data.answer)}</div>
@@ -2973,6 +3020,51 @@ DASHBOARD_HTML = """
             const p = document.getElementById('tools-catalog-panel');
             if (p) p.classList.toggle('hidden');
         }
+
+        async function runBenchmarkUI() {
+            const btn = document.getElementById('btn-run-benchmark');
+            const panel = document.getElementById('benchmark-results-panel');
+            if (panel) panel.classList.remove('hidden');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> Running EVAL...`;
+            }
+            try {
+                const res = await fetch('/api/eval/benchmark');
+                const data = await res.json();
+                const sum = data.summary;
+                const badgesEl = document.getElementById('benchmark-summary-badges');
+                if (badgesEl) {
+                    badgesEl.innerHTML = `
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${sum.overall_pass_rate_pct >= 90 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}">Grade: ${sum.overall_grade}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">${sum.passed_tests}/${sum.total_tests} Passed (${sum.overall_pass_rate_pct}%) • ${sum.execution_time_ms}ms</span>
+                    `;
+                }
+                const grid = document.getElementById('benchmark-dimensions-grid');
+                if (grid && data.dimensions) {
+                    grid.innerHTML = Object.entries(data.dimensions).map(([k, d]) => {
+                        const isPass = d.status === 'PASSED';
+                        return `
+                            <div class="p-2.5 rounded-lg bg-slate-900 border ${isPass ? 'border-slate-800' : 'border-amber-800/60'} space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-[11px] text-slate-200">${d.dimension}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-mono ${isPass ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}">${d.passed}/${d.total} (${d.score_pct}%)</span>
+                                </div>
+                                <div class="text-[10px] text-slate-400">${d.details.length} tests evaluated • Status: <span class="${isPass ? 'text-emerald-400' : 'text-amber-400'} font-semibold">${d.status}</span></div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                alert(`Benchmark run failed: ${err}`);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>🛡️ Run Benchmark EVAL</span>`;
+                }
+            }
+        }
+
 
         async function runJudgeUI(traceId) {
             const btn = document.getElementById(`judge-btn-${traceId}`);
@@ -3641,8 +3733,10 @@ def copilot_chat(req: CopilotQueryRequest):
         "answer": answer,
         "mode": status["mode"],
         "badge": status["privacy_badge"],
-        "session_id": session_id
+        "session_id": session_id,
+        "preflight_eval": getattr(copilot, "last_eval_result", None)
     }
+
 
 @app.post("/api/copilot/react")
 def copilot_react_endpoint(req: CopilotQueryRequest):
@@ -4080,6 +4174,19 @@ def judge_latest_trace_api(model: Optional[str] = None):
 def get_tools_api():
     from fiduciary.agent.web_tools import get_available_tools_catalog
     return {"tools": get_available_tools_catalog()}
+
+@app.get("/api/eval/benchmark")
+def run_eval_benchmark_api():
+    """Runs the 6-dimension Enterprise Fiduciary AI Evaluation Benchmark Suite."""
+    from fiduciary.observability.benchmark import EvaluationBenchmarkSuite
+    return EvaluationBenchmarkSuite.run_all()
+
+@app.get("/api/eval/status")
+def get_eval_status_api():
+    """Returns overview of pre-flight evaluation telemetry and grounding metrics."""
+    from fiduciary.observability.tracer import get_observability_metrics
+    return get_observability_metrics()
+
 
 
 

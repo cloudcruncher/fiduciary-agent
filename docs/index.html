@@ -210,24 +210,26 @@ flowchart TB
         LLM_CLIENT -.->|"Dormant Adapter (Opt-in only)"| GEMINI["Google Gemini Cloud API<br/>(Zero egress by default)"]
 
         OLLAMA --> REACT["Autonomous ReAct Agent Engine<br/>• Thought → Action → Observation<br/>• Dynamic MCP Tool Calling<br/>• Max 4 steps safety ceiling"]
-        REACT --> AUDIT["Layer 1: Grounding Auditor<br/>• Extracts all £, %, days<br/>• Validates against Prompt Context<br/>• Flags Unverified Claims"]
-        LMSTUDIO -.-> AUDIT
-        GATEWAY -.-> AUDIT
-        GEMINI -.-> AUDIT
+        REACT --> PREFLIGHT["Pre-Flight Fiduciary Evaluator & Self-Correction Gate<br/>• Extracts all £, %, days<br/>• Audits FCA Consumer Duty & Invariants<br/>• Auto-Repairs Hallucinations Pre-Delivery (&lt;2ms)"]
+        LMSTUDIO -.-> PREFLIGHT
+        GATEWAY -.-> PREFLIGHT
+        GEMINI -.-> PREFLIGHT
 
-        AUDIT --> TRACE["Observability Logger<br/>• Latency (ms)<br/>• Grounding Score<br/>• llm_traces Table"]
+        PREFLIGHT --> TRACE["Observability Logger<br/>• Latency (ms)<br/>• Grounding Score<br/>• llm_traces Table"]
         TRACE -.->|"On demand: ./f judge"| JUDGE["Layer 2: LLM-as-a-Judge<br/>(Ollama :11434 with think: false)<br/>• Faithfulness / Relevance / Fiduciary<br/>• Auto-unloaded after evaluation"]
         JUDGE -.->|"judge_result_json"| TRACE
+        TRACE -.->|"./f eval"| BENCHMARK["Enterprise EVAL Benchmark Suite<br/>• 6-Dimension Golden Dataset<br/>• Grade A+ Production Gate"]
     end
 
     subgraph INTERFACES["5. CLIENT PRESENTATION INTERFACES"]
-        AUDIT --> FASTAPI["FastAPI Local Server (127.0.0.1:8080)"]
+        PREFLIGHT --> FASTAPI["FastAPI Local Server (127.0.0.1:8080)"]
         TRACE --> FASTAPI
 
         FASTAPI --> MACAPP["Native macOS App<br/>(/Applications/Fiduciary.app)"]
-        FASTAPI --> BROWSER["Local Web Dashboard<br/>(http://localhost:8080)<br/>• Live Transactions tab<br/>• Credit &amp; Borrowing tab<br/>• Traces modal"]
-        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f react, ./f rag, ./f copilot --react, ./f tx, ./f judge)"]
+        FASTAPI --> BROWSER["Local Web Dashboard<br/>(http://localhost:8080)<br/>• Live Transactions tab<br/>• Credit &amp; Borrowing tab<br/>• Traces &amp; EVAL modal"]
+        FASTAPI --> CLI["Interactive Terminal CLI<br/>(./f eval, ./f react, ./f rag, ./f copilot --react, ./f tx, ./f judge)"]
     end
+
 
     style INGESTION fill:#064e3b,stroke:#059669,stroke-width:2px,color:#ecfdf5
     style STORAGE fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f8fafc
@@ -492,30 +494,31 @@ sequenceDiagram
                             </li>
                             <li class="flex items-start space-x-2">
                                 <span class="text-emerald-400 font-bold">3.</span>
-                                <span><strong>Scoring &amp; Flagging:</strong> Assigns a Grounding Score from 0.0 to 1.0. If an ungrounded figure is detected, the trace is flagged as <code>UNVERIFIED_FIGURES_DETECTED</code>.</span>
+                                <span><strong>In-Line Pre-Flight Self-Evaluation Gate:</strong> Executes before the response is delivered to the consumer (&lt;2ms). Audits numerical grounding, UK FCA Consumer Duty invariants (emergency buffer preservation, non-predatory products, statutory tax bounds), and detects negative premise baiting.</span>
                             </li>
                             <li class="flex items-start space-x-2">
-                                <span class="text-emerald-400 font-bold">4.</span>
-                                <span><strong>Immutable Trace Logging:</strong> Records the full trace with latency (ms), model identifier, provider (<code>local</code>, <code>gateway</code>, <code>gemini</code>), prompt, response, and audit result to the <code>llm_traces</code> table.</span>
+                                <span class="text-amber-400 font-bold">4.</span>
+                                <span><strong>Autonomous Pre-Delivery Self-Correction:</strong> If unverified claims or invariant breaches are detected, the critic loop feeds targeted diagnostic feedback back to the LLM for a rapid repair pass. If unverified estimates remain, transparent fiduciary disclaimers are attached so the customer is never misled.</span>
                             </li>
                             <li class="flex items-start space-x-2">
-                                <span class="text-amber-400 font-bold">5.</span>
-                                <span><strong>Layer 2 - Independent LLM-as-a-Judge (on demand):</strong> <code>./f judge</code> audits the completed interaction using an independent local model on Ollama. It scores Faithfulness, Relevance and Fiduciary Soundness (0–1), returns PASSED / WARNING / FAILED, and stores it in <code>judge_result_json</code>. The regex auditor catches invented numbers; the judge evaluates correct ordering, omissions, and fiduciary advice soundness.</span>
+                                <span class="text-emerald-400 font-bold">5.</span>
+                                <span><strong>Immutable Trace Logging:</strong> Records the full trace with latency (ms), model identifier, provider (<code>local</code>, <code>gateway</code>, <code>gemini</code>), prompt, response, preflight evaluation result, and tools used to the <code>llm_traces</code> table.</span>
                             </li>
                             <li class="flex items-start space-x-2">
-                                <span class="text-amber-400 font-bold">6.</span>
-                                <span><strong>16GB RAM Safeguard &amp; Sub-Second Latency:</strong> Both the Copilot and the Judge utilize <code>think: false</code> (bypassing 800+ hidden reasoning tokens to generate text in &lt;1.5s) and <code>keep_alive: 0</code> (unloading models from unified memory immediately after responding). Single-model footprint maintains 70%+ free RAM on a 16GB M3 Mac.</span>
+                                <span class="text-purple-400 font-bold">6.</span>
+                                <span><strong>Enterprise EVAL Benchmark Suite (<code>./f eval</code>):</strong> A production Forward Deployment Engineering (FDE) test harness auditing 6 core dimensions: Grounding Precision, FCA Consumer Duty, Negative Fact Resistance, Red-Teaming Injections, Ledger Reconciliation, and Latency SLAs. Delivers Grade A+ institutional verification.</span>
                             </li>
                             <li class="flex items-start space-x-2">
-                                <span class="text-cyan-400 font-bold">7.</span>
-                                <span><strong>Tool Execution &amp; Provenance Tracking:</strong> Every web scraping call (BoE 3.75%), retail market feed (Trading 212 4.87%, First Direct 7.00%), and database transaction query generates structured telemetry (<code>tool_name</code>, <code>source</code>, <code>latency_ms</code>, <code>summary</code>). Stored in <code>tools_used_json</code> and inspectable via <code>./f tools</code>, <code>./f traces --detail &lt;ID&gt;</code>, or the Web Dashboard tools panel.</span>
+                                <span class="text-amber-400 font-bold">7.</span>
+                                <span><strong>Layer 2 - Independent LLM-as-a-Judge:</strong> <code>./f judge</code> audits interactions on demand using an independent local model on Ollama. Enforces <code>keep_alive: 0</code> to automatically unload models from Apple Silicon unified memory immediately after scoring, keeping RAM 70%+ free.</span>
                             </li>
                             <li class="flex items-start space-x-2">
-                                <span class="text-blue-400 font-bold">8.</span>
-                                <span><strong>Enterprise AI Gateway &amp; Router Adapter:</strong> For institutional deployments requiring centralized observability, rate limiting, and model fallback routing (e.g., LiteLLM Proxy, Cloudflare AI Gateway, Portkey), the harness provides an OpenAI-compatible adapter (<code>AI_GATEWAY_URL</code>). The domain-specific <code>GroundingAuditor</code> remains positioned after the gateway, ensuring mathematical truth is audited regardless of proxy routing.</span>
+                                <span class="text-cyan-400 font-bold">8.</span>
+                                <span><strong>Tool Execution &amp; Provenance Tracking:</strong> Every web scraping call (BoE 3.75%), retail market feed (Trading 212 4.87%, First Direct 7.00%), and database transaction query generates structured telemetry (<code>tool_name</code>, <code>source</code>, <code>latency_ms</code>, <code>summary</code>). Stored in <code>tools_used_json</code> and inspectable via <code>./f tools</code>, <code>./f traces --detail &lt;ID&gt;</code>, or the Web Dashboard.</span>
                             </li>
                         </ul>
                     </div>
+
 
                     <div class="lg:col-span-5 bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3 font-mono text-[11px]">
                         <div class="text-slate-400 font-sans font-bold text-xs">Live Trace Inspection Schema</div>

@@ -157,3 +157,143 @@ def test_deterministic_analytics_latency_sla():
         )
     avg_credit_ms = ((time.perf_counter() - t1) / 50.0) * 1000.0
     assert avg_credit_ms < 15.0, f"Credit engine too slow: {avg_credit_ms:.2f}ms"
+
+
+# ---------------------------------------------------------
+# 5. Pre-Flight Fiduciary Evaluator & Self-Correction Gate
+# ---------------------------------------------------------
+
+def test_preflight_evaluator_clean_pass():
+    """Verifies that 100% grounded response passes pre-flight evaluation in < 5ms."""
+    from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
+    context = "NatWest Current: £1,420.50. Revolut Vault: £4,500.00. 3-Month Emergency Target: £1,680.00."
+    response = "Your NatWest Current holds £1,420.50, and your Revolut Vault has £4,500.00, against your £1,680.00 buffer."
+
+    res = PreFlightEvaluator.evaluate(
+        user_query="What are my balances?",
+        response=response,
+        system_prompt=context
+    )
+    assert res.passed is True
+    assert res.verdict == "PASSED"
+    assert res.grounding_score == 1.0
+    assert res.fiduciary_score == 1.0
+    assert res.eval_latency_ms < 10.0
+    assert "£1,420.50" in res.verified_figures
+
+
+def test_preflight_evaluator_flagged_hallucination():
+    """Verifies that ungrounded figures are intercepted and flagged."""
+    from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
+    context = "NatWest Current: £1,420.50."
+    response = "You have an outstanding credit card balance of £8,750.00 with Barclaycard at 24.9% APR."
+
+    res = PreFlightEvaluator.evaluate(
+        user_query="Do I have credit card debt?",
+        response=response,
+        system_prompt=context
+    )
+    assert res.passed is False
+    assert res.verdict == "FLAGGED"
+    assert "£8,750.00" in res.unverified_figures or "24.9%" in res.unverified_figures
+
+
+def test_preflight_evaluator_self_correction_loop():
+    """Verifies that PreFlightEvaluator invokes refine_callback to self-correct hallucinations before consumer sees them."""
+    from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
+    context = "Verified Liquid Balance: £1,420.50 across NatWest and Revolut. Top Cash ISA: 4.87% AER."
+    # Hallucinated initial completion
+    initial_draft = "You have £12,500.00 in your account and can earn 8.9% interest."
+
+    # Mock self-correction callback that repairs the response using ground truth
+    def mock_refine(critique_prompt: str) -> str:
+        assert "unverified client records" in critique_prompt or "MANDATORY CORRECTION" in critique_prompt
+        return "Your verified liquid balance is £1,420.50 across NatWest and Revolut, and the top Cash ISA yield is 4.87% AER."
+
+    result = PreFlightEvaluator.evaluate_and_guard(
+        user_query="How much money do I have?",
+        response=initial_draft,
+        system_prompt=context,
+        refine_callback=mock_refine
+    )
+
+    assert result.self_corrected is True
+    assert result.verdict == "SELF_CORRECTED"
+    assert result.grounding_score == 1.0
+    assert "£1,420.50" in result.verified_figures
+    assert "£12,500.00" not in result.response
+    assert "8.9%" not in result.response
+
+
+def test_preflight_evaluator_fiduciary_invariants():
+    """Verifies interception of predatory products and reckless advice under low runway."""
+    from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
+    # 1. Predatory loan check
+    pred_res = PreFlightEvaluator.evaluate(
+        user_query="I need money quickly",
+        response="I suggest taking out a quick payday loan at 1200% interest.",
+        system_prompt="Balance: £50.00"
+    )
+    assert any("predatory_product_detected" in inv for inv in pred_res.invariants_failed)
+
+    # 2. Crisis runway check
+    crisis_res = PreFlightEvaluator.evaluate(
+        user_query="Can I splurge?",
+        response="You have plenty of cash to spend on luxury dining and holidays.",
+        system_prompt="Liquid Runway: 1.5 days. Current balance: £27.00."
+    )
+    assert any("reckless_spending_under_crisis_runway" in inv for inv in crisis_res.invariants_failed)
+
+
+def test_preflight_evaluator_negative_entity_check():
+    """Verifies that asking about unconnected entities enforces non-hallucination."""
+    from fiduciary.observability.preflight_eval import PreFlightEvaluator
+
+    context = "Connected Accounts: NatWest, Revolut."
+
+    # Good response: acknowledges absence
+    good_res = PreFlightEvaluator.evaluate(
+        user_query="What is my Amex balance?",
+        response="You do not have an Amex account connected to your profile.",
+        system_prompt=context
+    )
+    assert any("negative_entity_verified:amex" in p for p in good_res.invariants_passed)
+    assert good_res.verdict == "PASSED"
+
+    # Bad response: invents presence
+    bad_res = PreFlightEvaluator.evaluate(
+        user_query="What is my Amex balance?",
+        response="Your Amex balance is £450.00 with minimum payment due.",
+        system_prompt=context
+    )
+    assert any("hallucinated_absent_entity:amex" in f for f in bad_res.invariants_failed)
+
+
+# ---------------------------------------------------------
+# 6. Enterprise Evaluation Benchmark Suite
+# ---------------------------------------------------------
+
+def test_enterprise_evaluation_benchmark_suite():
+    """Executes the full 6-dimension evaluation benchmark suite and verifies 100% pass rate."""
+    from fiduciary.observability.benchmark import EvaluationBenchmarkSuite
+
+    results = EvaluationBenchmarkSuite.run_all()
+    summary = results["summary"]
+
+    assert summary["overall_pass_rate_pct"] == 100.0
+    assert summary["overall_grade"] == "A+ (Institutional Fiduciary Ready)"
+    assert summary["passed_tests"] == summary["total_tests"]
+    assert summary["execution_time_ms"] < 100.0  # Entire suite runs in <100ms
+
+    dims = results["dimensions"]
+    assert dims["grounding_precision"]["status"] == "PASSED"
+    assert dims["fiduciary_consumer_duty"]["status"] == "PASSED"
+    assert dims["negative_fact_resistance"]["status"] == "PASSED"
+    assert dims["adversarial_defense"]["status"] == "PASSED"
+    assert dims["deterministic_reconciliation"]["status"] == "PASSED"
+    assert dims["latency_slas"]["status"] == "PASSED"
+

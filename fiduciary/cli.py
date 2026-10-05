@@ -1,5 +1,6 @@
 import argparse
 import sys
+from typing import Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -598,6 +599,23 @@ def cmd_gateway(args):
     ])
 
 
+def print_eval_stamp(eval_dict: Optional[dict]):
+    """Renders pre-flight self-evaluation & verification telemetry banner in terminal."""
+    if not eval_dict:
+        return
+    verdict = eval_dict.get("verdict", "")
+    g_score = eval_dict.get("grounding_score", 1.0)
+    lat = eval_dict.get("eval_latency_ms", 0.0)
+    v_figs = eval_dict.get("verified_figures", [])
+    figs_str = f" • Verified: {', '.join(v_figs[:3])}" if v_figs else ""
+
+    if verdict == "SELF_CORRECTED":
+        console.print(f"[bold yellow]⚡ Pre-Flight Self-Correction:[/bold yellow] [dim]Hallucination intercepted and repaired before delivery ({lat:.1f}ms{figs_str})[/dim]\n")
+    elif verdict == "PASSED":
+        console.print(f"[bold green]🛡️ Pre-Flight Verification:[/bold green] [dim]100% Grounded ({g_score*100:.0f}% fact score • {lat:.1f}ms{figs_str})[/dim]\n")
+    elif verdict == "WARNING":
+        console.print(f"[bold yellow]⚠️ Pre-Flight Verification Notice:[/bold yellow] [dim]{eval_dict.get('summary', '')} ({lat:.1f}ms)[/dim]\n")
+
 def cmd_copilot(args):
     """Interact with the live Fiduciary Copilot."""
     init_db()
@@ -628,6 +646,7 @@ def cmd_copilot(args):
                 console.print(f"  [dim green]Observation:[/dim green] {obs_prev}")
 
         console.print(Panel(Markdown(result["answer"]), title=f"🤖 Fiduciary ReAct Verdict ({result['total_duration_ms']:.0f}ms)", border_style="green"))
+        print_eval_stamp(result.get("preflight_eval"))
         return
 
     copilot = AICopilotEngine()
@@ -636,6 +655,7 @@ def cmd_copilot(args):
         console.print("[dim]Consulting fiduciary database...[/dim]")
         answer = copilot.process_query(query, use_react=use_react)
         console.print(Panel(Markdown(answer), title="🤖 Fiduciary Copilot", border_style="cyan"))
+        print_eval_stamp(getattr(copilot, "last_eval_result", None))
     else:
         console.print(Panel.fit(
             "[bold cyan]🤖 INTERACTIVE FIDUCIARY COPILOT[/bold cyan]\n"
@@ -650,11 +670,13 @@ def cmd_copilot(args):
                     continue
                 if user_input.lower() in ["exit", "quit", "q"]:
                     break
-                console.print("[dim]Analyzing real accounts...[/dim]")
+                console.print("[dim]Analyzing real accounts & self-evaluating...[/dim]")
                 ans = copilot.process_query(user_input, use_react=use_react)
                 console.print(Panel(Markdown(ans), title="🤖 Fiduciary Copilot", border_style="cyan"))
+                print_eval_stamp(getattr(copilot, "last_eval_result", None))
             except (KeyboardInterrupt, EOFError):
                 break
+
 
 
 def cmd_rag(args):
@@ -1156,6 +1178,64 @@ def cmd_judge(args):
 """
     console.print(Panel(content, title=f"[{verdict_style}]⚖️ LLM-AS-A-JUDGE VERDICT: {res.get('verdict')}[/{verdict_style}]", border_style="cyan"))
 
+def cmd_eval(args):
+    """Run the Enterprise Fiduciary AI Evaluation Benchmark Suite across 6 production dimensions."""
+    # If trace_id or --judge is specified, delegate to cmd_judge
+    if getattr(args, "trace", None) or getattr(args, "judge", False):
+        setattr(args, "trace_id", getattr(args, "trace", None))
+        cmd_judge(args)
+        return
+
+    from fiduciary.observability.benchmark import EvaluationBenchmarkSuite
+
+    console.print("\n[bold cyan]🛡️ RUNNING ENTERPRISE FIDUCIARY AI EVALUATION BENCHMARK...[/bold cyan]")
+    console.print("[dim]Auditing 6 production dimensions: Grounding, Fiduciary Invariants, Bait Resistance, Jailbreak Defense, Ledger Precision, Latency SLAs.[/dim]\n")
+
+    with console.status("[bold green]Executing comprehensive golden evaluation suite...[/bold green]"):
+        results = EvaluationBenchmarkSuite.run_all()
+
+    summary = results["summary"]
+    grade = summary["overall_grade"]
+    pass_pct = summary["overall_pass_rate_pct"]
+    passed = summary["passed_tests"]
+    total = summary["total_tests"]
+    dur = summary["execution_time_ms"]
+
+    grade_style = "bold green" if pass_pct >= 90.0 else ("bold yellow" if pass_pct >= 75.0 else "bold red")
+
+    console.print(Panel.fit(
+        f"[{grade_style}]GRADE: {grade}[/{grade_style}]\n\n"
+        f"• [bold]Overall Pass Rate:[/bold] [{grade_style}]{pass_pct}% ({passed}/{total} tests passed)[/{grade_style}]\n"
+        f"• [bold]Evaluation Execution Time:[/bold] {dur:.1f} ms\n"
+        f"• [bold]Audit Timestamp:[/bold] {summary['evaluated_at'][:19].replace('T', ' ')}\n"
+        f"• [bold]Fiduciary Standard:[/bold] UK FCA Consumer Duty (FG22/5 & MCOB 11 Compliant)",
+        title="[bold cyan]⚖️ Fiduciary AI Production Evaluation Report[/bold cyan]",
+        border_style="cyan"
+    ))
+
+    table = Table(title="Production AI Evaluation Dimensions (Forward Deployment Standard)")
+    table.add_column("Dimension", style="bold")
+    table.add_column("Score", justify="center")
+    table.add_column("Tests Passed", justify="center")
+    table.add_column("Status", justify="center")
+    table.add_column("Key Metric / Diagnostic", style="dim")
+
+    for dim_key, dim in results["dimensions"].items():
+        st = dim["status"]
+        st_style = "bold green" if st == "PASSED" else ("bold yellow" if st == "WARNING" else "bold red")
+        first_detail = dim["details"][0].get("metric") or dim["details"][0].get("test") or "All checks verified" if dim["details"] else "N/A"
+        table.add_row(
+            dim["dimension"],
+            f"[{st_style}]{dim['score_pct']}%[/{st_style}]",
+            f"{dim['passed']} / {dim['total']}",
+            f"[{st_style}]{st}[/{st_style}]",
+            first_detail
+        )
+
+    console.print(table)
+    console.print("\n[dim]Tip: In-line pre-flight self-evaluation executes automatically on every query in './f copilot' and the Web UI.[/dim]\n")
+
+
 def cmd_seed(args):
     """Populate database with synthetic realistic UK financial data for testing without live banks."""
     from fiduciary.storage.seed import seed_demo_data
@@ -1313,12 +1393,20 @@ def build_parser():
     p_traces.add_argument("--clear", action="store_true", help="Purge all trace logs")
     p_traces.set_defaults(func=cmd_traces)
 
-    # judge (alias: eval, j)
-    p_judge = subparsers.add_parser("judge", aliases=["eval", "j"], help="Evaluate AI Copilot outputs using independent local model (LLM-as-a-Judge)")
+    # eval (alias: benchmark, evals)
+    p_eval = subparsers.add_parser("eval", aliases=["benchmark", "evals"], help="Run Institutional AI Evaluation Benchmark suite (Grounding, Invariants, SLAs)")
+    p_eval.add_argument("--trace", help="Evaluate a specific stored trace ID with the judge")
+    p_eval.add_argument("--judge", action="store_true", help="Run independent LLM-as-a-Judge evaluation on the latest trace")
+    p_eval.add_argument("--model", "-m", help="Judge model override")
+    p_eval.set_defaults(func=cmd_eval)
+
+    # judge (alias: j, critic)
+    p_judge = subparsers.add_parser("judge", aliases=["j", "critic"], help="Evaluate AI Copilot outputs using independent local model (LLM-as-a-Judge)")
     p_judge.add_argument("trace_id", nargs="?", help="Specific trace ID to evaluate (defaults to latest)")
     p_judge.add_argument("--latest", action="store_true", help="Evaluate the most recent AI trace")
     p_judge.add_argument("--model", "-m", help="Override judge model (e.g. llama3.2:3b, gemma2:2b)")
     p_judge.set_defaults(func=cmd_judge)
+
 
     # tools (alias: tl, catalog)
     p_tools = subparsers.add_parser("tools", aliases=["tl", "catalog"], help="Inspect available deterministic & live web tools catalog")

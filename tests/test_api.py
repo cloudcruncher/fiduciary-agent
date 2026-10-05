@@ -243,3 +243,33 @@ def test_session_scoped_chat():
     clear_chat_history(session_id=sess_b)
 
 
+def test_eval_benchmark_and_copilot_verification_api():
+    """Tests the /api/eval/benchmark and /api/eval/status endpoints."""
+    # 1. Benchmark endpoint
+    res = client.get("/api/eval/benchmark")
+    assert res.status_code == 200
+    data = res.json()
+    assert "summary" in data
+    assert "dimensions" in data
+    assert data["summary"]["overall_grade"].startswith("A")
+    assert data["summary"]["overall_pass_rate_pct"] == 100.0
+
+    # 2. Eval status endpoint
+    res_status = client.get("/api/eval/status")
+    assert res_status.status_code == 200
+    status_data = res_status.json()
+    assert "total_invocations" in status_data
+    assert "grounding_pass_rate_pct" in status_data
+
+    # 3. Copilot chat endpoint returns preflight_eval
+    res_chat = client.post("/api/copilot/chat", json={"query": "What is my emergency buffer target?"})
+    assert res_chat.status_code == 200
+    chat_data = res_chat.json()
+    assert "answer" in chat_data
+    assert "preflight_eval" in chat_data
+    if chat_data["preflight_eval"]:
+        assert "verdict" in chat_data["preflight_eval"]
+        assert "grounding_score" in chat_data["preflight_eval"]
+
+
+
