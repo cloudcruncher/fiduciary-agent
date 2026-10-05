@@ -190,6 +190,11 @@ DASHBOARD_HTML = """
                 <button onclick="openTracesModal()" class="hidden md:inline-flex px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition items-center space-x-1.5 border border-slate-700 text-slate-300 shadow-sm" title="Inspect AI Agent Traces, Latency, Grounding Audit &amp; LLM Judge Reports">
                     <span>⚖️ Traces &amp; Judge</span>
                 </button>
+                <button onclick="openIncidentsModal()" class="hidden md:inline-flex px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition items-center space-x-1.5 border border-slate-700 text-slate-300 shadow-sm" title="Enterprise Incident Management, Outage Logging &amp; Splunk Alerts">
+                    <span class="text-rose-400">🚨</span>
+                    <span>Incidents</span>
+                    <span id="nav-incident-badge" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-mono font-bold hidden">0</span>
+                </button>
                 <button onclick="openMobileConnectModal()" class="hidden sm:inline-flex px-2.5 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs font-semibold rounded-lg transition items-center space-x-1.5 shadow-sm" title="Connect bank apps using your phone (FaceID)">
                     <span>📱 Phone Link</span>
                 </button>
@@ -224,6 +229,9 @@ DASHBOARD_HTML = """
                 </a>
                 <button onclick="openTracesModal(); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-slate-200 font-semibold border border-slate-750 flex items-center space-x-1.5">
                     <span>⚖️</span><span>Traces &amp; Judge</span>
+                </button>
+                <button onclick="openIncidentsModal(); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-rose-300 font-semibold border border-slate-750 flex items-center space-x-1.5">
+                    <span>🚨</span><span>System Incidents &amp; Alerts</span>
                 </button>
                 <button onclick="switchMainTab('walkthrough'); toggleMobileMenu();" class="p-2 bg-slate-850 hover:bg-slate-800 text-left rounded-lg text-slate-200 font-semibold border border-slate-750 flex items-center space-x-1.5">
                     <span>🧭</span><span>Tour &amp; Guide</span>
@@ -1638,6 +1646,9 @@ DASHBOARD_HTML = """
                         <span>⚖️ Judge Latest</span>
                     </button>
                     <button onclick="clearTracesUI()" class="px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs rounded-lg transition font-medium">Clear Traces</button>
+                    <button onclick="closeTracesModal(); openIncidentsModal();" class="px-2.5 py-1 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs rounded-lg transition font-medium flex items-center gap-1" title="View System Incidents &amp; Outage Alerts">
+                        <span>🚨 Incidents (<span id="traces-modal-incident-count">0</span>)</span>
+                    </button>
                     <button onclick="closeTracesModal()" class="text-slate-400 hover:text-white px-2 py-1">✕</button>
                 </div>
             </div>
@@ -1731,6 +1742,75 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
+    <!-- ENTERPRISE SYSTEM INCIDENTS & OUTAGE ALERTS MODAL -->
+    <div id="ai-incidents-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-xl">🚨</span>
+                    <div>
+                        <h3 class="font-bold text-sm text-white">System Incidents, Outage Alerts &amp; Telemetry</h3>
+                        <p class="text-[11px] text-slate-400">ITIL Incident Management • Splunk HEC NDJSON • PagerDuty Events API v2 • Service Health Logging</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="triggerSimulatedIncidentUI('CRITICAL', 'LLM_SERVICE_DOWN')" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs rounded-lg transition font-medium flex items-center gap-1" title="Simulate a Critical Outage Alert">
+                        <span>⚡ Test Outage Alert</span>
+                    </button>
+                    <a href="/api/incidents/export" target="_blank" class="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-800 text-amber-300 text-xs rounded-lg transition font-medium flex items-center gap-1" title="Download raw Splunk HEC NDJSON">
+                        <span>📥 Splunk NDJSON</span>
+                    </a>
+                    <button onclick="loadIncidentsUI()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">🔄 Refresh</button>
+                    <button onclick="closeIncidentsModal()" class="text-slate-400 hover:text-white px-2 py-1">✕</button>
+                </div>
+            </div>
+
+            <!-- Incident KPI Metrics Bar -->
+            <div class="px-5 py-3 bg-slate-950 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Total Logged</span>
+                    <div id="incident-metric-total" class="font-bold text-sm text-white">0</div>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Open / Actionable</span>
+                    <div id="incident-metric-open" class="font-bold text-sm text-rose-400">0</div>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Critical (Sev 1)</span>
+                    <div id="incident-metric-critical" class="font-bold text-sm text-amber-400">0</div>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">SIEM Forwarding</span>
+                    <div class="font-bold text-sm text-emerald-400">Splunk HEC Active</div>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="px-5 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                    <span class="text-slate-400 text-[11px]">Filter:</span>
+                    <button onclick="filterIncidentsUI('ALL')" id="filter-inc-all" class="px-2.5 py-0.5 rounded bg-slate-800 text-white font-medium">All</button>
+                    <button onclick="filterIncidentsUI('OPEN')" id="filter-inc-open" class="px-2.5 py-0.5 rounded text-slate-400 hover:text-white">Open Only</button>
+                    <button onclick="filterIncidentsUI('CRITICAL')" id="filter-inc-crit" class="px-2.5 py-0.5 rounded text-slate-400 hover:text-white">Critical</button>
+                </div>
+                <div class="text-[11px] text-slate-400 flex items-center space-x-2">
+                    <span>Export Traces:</span>
+                    <a href="/api/traces/export?format=splunk" target="_blank" class="text-cyan-400 hover:underline font-mono text-[10px]">Splunk Traces</a>
+                </div>
+            </div>
+
+            <!-- Incidents List Container -->
+            <div id="incidents-list-container" class="p-5 overflow-y-auto space-y-3 flex-1 text-xs">
+                <div class="text-center py-8 text-slate-500">Loading incidents...</div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span class="text-[11px]">Audit Protocol: Invariant violations and service outages are immutably signed for FCA &amp; PRA audits.</span>
+                <button onclick="closeIncidentsModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-white">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentData = null;
         let selectedActions = new Set();
@@ -1779,7 +1859,8 @@ DASHBOARD_HTML = """
                     loadAuditFeed(),
                     loadTaxAudit(),
                     loadSweeper(),
-                    loadChatHistory()
+                    loadChatHistory(),
+                    updateIncidentsBadge()
                 ]);
             } catch (err) {
                 console.error("Failed to fetch state:", err);
@@ -3117,6 +3198,181 @@ DASHBOARD_HTML = """
             await loadTracesUI();
         }
 
+        // Enterprise Incident Management & Alerting UI
+        let currentIncidentsFilter = 'ALL';
+        let cachedIncidents = [];
+
+        function openIncidentsModal() {
+            document.getElementById('ai-incidents-modal').classList.remove('hidden');
+            loadIncidentsUI();
+        }
+
+        function closeIncidentsModal() {
+            document.getElementById('ai-incidents-modal').classList.add('hidden');
+        }
+
+        async function updateIncidentsBadge() {
+            try {
+                const res = await fetch('/api/incidents');
+                const data = await res.json();
+                const openCount = data.open_count !== undefined ? data.open_count : (data.incidents ? data.incidents.filter(i => i.status === 'OPEN').length : 0);
+                const badge = document.getElementById('nav-incident-badge');
+                if (badge) {
+                    if (openCount > 0) {
+                        badge.innerText = `${openCount} Open`;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.innerText = '0';
+                        badge.classList.add('hidden');
+                    }
+                }
+                const modalBadge = document.getElementById('traces-modal-incident-count');
+                if (modalBadge) {
+                    modalBadge.innerText = openCount;
+                }
+            } catch (e) {
+                console.error('Failed to update incident badge:', e);
+            }
+        }
+
+        async function loadIncidentsUI() {
+            const container = document.getElementById('incidents-list-container');
+            try {
+                const res = await fetch('/api/incidents');
+                const data = await res.json();
+                cachedIncidents = data.incidents || [];
+
+                const openCount = data.open_count !== undefined ? data.open_count : cachedIncidents.filter(i => i.status === 'OPEN').length;
+                const critCount = data.critical_count !== undefined ? data.critical_count : cachedIncidents.filter(i => i.severity === 'CRITICAL' && i.status === 'OPEN').length;
+
+                const metricTotal = document.getElementById('incident-metric-total');
+                const metricOpen = document.getElementById('incident-metric-open');
+                const metricCrit = document.getElementById('incident-metric-critical');
+                if (metricTotal) metricTotal.innerText = cachedIncidents.length;
+                if (metricOpen) metricOpen.innerText = openCount;
+                if (metricCrit) metricCrit.innerText = critCount;
+
+                updateIncidentsBadge();
+                renderFilteredIncidents();
+            } catch (err) {
+                if (container) {
+                    container.innerHTML = `<div class="text-center py-8 text-rose-400">Error loading incidents: ${err}</div>`;
+                }
+            }
+        }
+
+        function filterIncidentsUI(filter) {
+            currentIncidentsFilter = filter;
+            ['all', 'open', 'crit'].forEach(id => {
+                const el = document.getElementById(`filter-inc-${id}`);
+                if (el) el.className = 'px-2.5 py-0.5 rounded text-slate-400 hover:text-white';
+            });
+            const activeId = filter === 'ALL' ? 'all' : (filter === 'OPEN' ? 'open' : 'crit');
+            const activeEl = document.getElementById(`filter-inc-${activeId}`);
+            if (activeEl) activeEl.className = 'px-2.5 py-0.5 rounded bg-slate-800 text-white font-medium';
+            renderFilteredIncidents();
+        }
+
+        function renderFilteredIncidents() {
+            const container = document.getElementById('incidents-list-container');
+            if (!container) return;
+            let list = cachedIncidents;
+            if (currentIncidentsFilter === 'OPEN') {
+                list = list.filter(i => i.status === 'OPEN');
+            } else if (currentIncidentsFilter === 'CRITICAL') {
+                list = list.filter(i => i.severity === 'CRITICAL');
+            }
+
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-slate-500">No system incidents found matching this filter. System operating nominally.</div>';
+                return;
+            }
+
+            container.innerHTML = list.map(inc => {
+                const sev = (inc.severity || 'LOW').toUpperCase();
+                const isCrit = sev === 'CRITICAL';
+                const isHigh = sev === 'HIGH';
+                const sevBadge = isCrit
+                    ? 'bg-rose-950 text-rose-300 border-rose-600 font-bold animate-pulse'
+                    : (isHigh ? 'bg-amber-950 text-amber-300 border-amber-600 font-bold' : 'bg-slate-800 text-slate-300 border-slate-700');
+                const statusBadge = inc.status === 'OPEN'
+                    ? 'bg-rose-950 text-rose-300 border-rose-800'
+                    : 'bg-emerald-950 text-emerald-300 border-emerald-800';
+                const detailsStr = inc.details ? JSON.stringify(inc.details, null, 2) : '';
+
+                return `
+                    <div class="card p-4 space-y-2 border-l-4 ${isCrit ? 'border-l-rose-500 bg-rose-950/10' : (isHigh ? 'border-l-amber-500' : 'border-l-slate-600')}">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-0.5 rounded text-[10px] uppercase font-mono border ${sevBadge}">${sev}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] uppercase font-mono border ${statusBadge}">${inc.status}</span>
+                                <span class="font-mono text-slate-400 text-[11px] font-bold">${inc.id}</span>
+                                ${inc.trace_id ? `<span class="text-[10px] text-slate-500 font-mono">Trace: ${inc.trace_id}</span>` : ''}
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-mono">
+                                ${inc.timestamp || ''}
+                            </div>
+                        </div>
+
+                        <div class="pt-1">
+                            <div class="text-sm font-semibold text-white flex items-center gap-1.5">
+                                <span class="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">${inc.event_type}</span>
+                                <span>${inc.summary}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-1">
+                                <span class="text-slate-500">Service:</span> <span class="text-slate-300 font-mono">${inc.service}</span>
+                            </div>
+                        </div>
+
+                        ${detailsStr ? `
+                            <details class="text-[10px] bg-slate-950 p-2 rounded border border-slate-800 text-slate-300 font-mono mt-2">
+                                <summary class="cursor-pointer text-slate-400 hover:text-white font-sans text-[10px]">Triage Telemetry &amp; Metadata</summary>
+                                <pre class="mt-1 whitespace-pre-wrap overflow-x-auto text-[10px] text-slate-300">${detailsStr}</pre>
+                            </details>
+                        ` : ''}
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+                            <div class="text-slate-500 text-[10px]">
+                                Export: <a href="/api/incidents/export" target="_blank" class="text-amber-400 hover:underline">Splunk NDJSON</a> • 
+                                <span class="text-slate-400">PagerDuty v2 Compatible</span>
+                            </div>
+                            ${inc.status === 'OPEN' ? `
+                                <button onclick="resolveIncidentUI('${inc.id}')" class="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 rounded font-semibold transition">
+                                    ✓ Resolve Incident
+                                </button>
+                            ` : `
+                                <span class="text-emerald-400 font-medium">✓ Resolved</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function triggerSimulatedIncidentUI(sev, evType) {
+            try {
+                const res = await fetch(`/api/incidents/test-alert?severity=${sev}&event_type=${evType}`, { method: 'POST' });
+                const inc = await res.json();
+                alert(`Simulated ${sev} Alert Generated!\nID: ${inc.id}\nFormatted for PagerDuty & Splunk.`);
+                await loadIncidentsUI();
+            } catch (err) {
+                alert(`Failed to trigger simulated alert: ${err}`);
+            }
+        }
+
+        async function resolveIncidentUI(incId) {
+            try {
+                const res = await fetch(`/api/incidents/${incId}/resolve`, { method: 'POST' });
+                if (res.ok) {
+                    await loadIncidentsUI();
+                } else {
+                    alert('Could not resolve incident');
+                }
+            } catch (err) {
+                alert(`Error: ${err}`);
+            }
+        }
+
         // Cancellation Letter
         async function generateCancelLetter() {
             const service_name = document.getElementById('cancel-service').value;
@@ -4232,7 +4488,15 @@ def export_traces_api(format: str = Query("splunk", description="Export format: 
 def get_incidents_api(severity: Optional[str] = None, status: Optional[str] = None, limit: int = 50):
     """Retrieves enterprise system incidents and alert logs."""
     from fiduciary.observability.incident import get_incidents
-    return {"incidents": get_incidents(limit=limit, severity=severity, status=status)}
+    incidents = get_incidents(limit=limit, severity=severity, status=status)
+    open_count = sum(1 for inc in incidents if inc.get("status") == "OPEN")
+    critical_count = sum(1 for inc in incidents if inc.get("severity") == "CRITICAL" and inc.get("status") == "OPEN")
+    return {
+        "incidents": incidents,
+        "count": len(incidents),
+        "open_count": open_count,
+        "critical_count": critical_count,
+    }
 
 @app.get("/api/incidents/export")
 def export_incidents_api(limit: int = 50):
