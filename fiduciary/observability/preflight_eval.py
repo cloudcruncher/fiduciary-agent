@@ -276,6 +276,21 @@ REFINED FIDUCIARY RESPONSE:"""
                             re_eval.verdict = "SELF_CORRECTED"
                             re_eval.verification_badge = "⚡ Fiduciary Pre-Delivery Self-Corrected & Verified"
                             re_eval.summary = f"Response self-corrected before delivery: eliminated ungrounded claims in {corr_duration:.0f}ms."
+                            try:
+                                from fiduciary.observability.incident import (
+                                    IncidentEventType,
+                                    IncidentSeverity,
+                                    record_incident,
+                                )
+                                record_incident(
+                                    severity=IncidentSeverity.LOW,
+                                    event_type=IncidentEventType.UNGROUNDED_REPAIRED,
+                                    service="preflight_eval",
+                                    summary=f"Pre-flight gate auto-repaired unverified figures: {', '.join(initial_eval.unverified_figures[:4])}",
+                                    details={"query": user_query[:100], "repaired_figures": initial_eval.unverified_figures, "status": "AUTO_REPAIRED"},
+                                )
+                            except Exception:
+                                pass
                         return re_eval
             except Exception:
                 # If self-correction fails, fall back to safe annotation
@@ -284,11 +299,23 @@ REFINED FIDUCIARY RESPONSE:"""
         # If self-correction was not possible or still has unverified figures,
         # apply transparent fiduciary verification notice so customer is not misled
         guarded_response = response
-        if initial_eval.unverified_figures:
+        if initial_eval.unverified_figures or initial_eval.invariants_failed:
             unverified_str = ", ".join(initial_eval.unverified_figures[:4])
-            note = f"\n\n> 🛡️ **Fiduciary Verification Note**: Figures ({unverified_str}) represent illustrative benchmarks and could not be verified against live accounts."
-            if note not in guarded_response:
-                guarded_response += note
+            try:
+                from fiduciary.observability.incident import IncidentEventType, IncidentSeverity, record_incident
+                record_incident(
+                    severity=IncidentSeverity.HIGH if initial_eval.invariants_failed else IncidentSeverity.MEDIUM,
+                    event_type=IncidentEventType.INVARIANT_BREACH,
+                    service="preflight_eval",
+                    summary=f"Fiduciary warning attached: {unverified_str or ', '.join(initial_eval.invariants_failed[:2])}",
+                    details={"query": user_query[:100], "invariants_failed": initial_eval.invariants_failed, "unverified": initial_eval.unverified_figures},
+                )
+            except Exception:
+                pass
+            if initial_eval.unverified_figures:
+                note = f"\n\n> 🛡️ **Fiduciary Verification Note**: Figures ({unverified_str}) represent illustrative benchmarks and could not be verified against live accounts."
+                if note not in guarded_response:
+                    guarded_response += note
 
         initial_eval.response = guarded_response
         return initial_eval

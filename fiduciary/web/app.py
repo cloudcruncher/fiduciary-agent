@@ -4215,6 +4215,57 @@ def get_eval_status_api():
     from fiduciary.observability.tracer import get_observability_metrics
     return get_observability_metrics()
 
+@app.get("/api/traces/export")
+def export_traces_api(format: str = Query("splunk", description="Export format: splunk or json"), limit: int = 50):
+    """Exports traces in Splunk HEC / ECS NDJSON or standard JSON format."""
+    import json
+
+    from fiduciary.observability.incident import export_traces_splunk
+    from fiduciary.observability.tracer import get_recent_traces
+    if format == "splunk":
+        events = export_traces_splunk(limit=limit)
+        ndjson = "\n".join(json.dumps(ev) for ev in events)
+        return Response(content=ndjson, media_type="application/x-ndjson")
+    return {"traces": get_recent_traces(limit=limit)}
+
+@app.get("/api/incidents")
+def get_incidents_api(severity: Optional[str] = None, status: Optional[str] = None, limit: int = 50):
+    """Retrieves enterprise system incidents and alert logs."""
+    from fiduciary.observability.incident import get_incidents
+    return {"incidents": get_incidents(limit=limit, severity=severity, status=status)}
+
+@app.get("/api/incidents/export")
+def export_incidents_api(limit: int = 50):
+    """Exports incidents in Splunk HEC NDJSON format."""
+    import json
+
+    from fiduciary.observability.incident import export_incidents_splunk
+    events = export_incidents_splunk(limit=limit)
+    ndjson = "\n".join(json.dumps(ev) for ev in events)
+    return Response(content=ndjson, media_type="application/x-ndjson")
+
+@app.post("/api/incidents/{incident_id}/resolve")
+def resolve_incident_api(incident_id: str):
+    """Marks an incident as resolved."""
+    from fiduciary.observability.incident import resolve_incident
+    success = resolve_incident(incident_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Incident not found or already resolved")
+    return {"status": "resolved", "id": incident_id}
+
+@app.post("/api/incidents/test-alert")
+def create_test_incident_api(severity: str = "HIGH", event_type: str = "PROMPT_INJECTION"):
+    """Creates a simulated alert for testing monitoring pipelines."""
+    from fiduciary.observability.incident import record_incident
+    return record_incident(
+        severity=severity,
+        event_type=event_type,
+        service="test_harness",
+        summary=f"Simulated {severity} alert triggered via test endpoint",
+        details={"simulated": True, "created_by": "api_test"}
+    )
+
+
 
 
 

@@ -986,6 +986,14 @@ def cmd_traces(args):
         console.print("[bold yellow]✓ All AI observability traces cleared.[/bold yellow]")
         return
 
+    if getattr(args, "splunk", False) or getattr(args, "ndjson", False):
+        import json
+
+        from fiduciary.observability.incident import export_traces_splunk
+        for ev in export_traces_splunk(limit=args.limit):
+            print(json.dumps(ev))
+        return
+
     traces = get_recent_traces(limit=args.limit)
     metrics = get_observability_metrics()
 
@@ -1083,6 +1091,87 @@ def cmd_traces(args):
 
     console.print(table)
     console.print("\n[dim]Tip: Run './f traces --detail <ID>' to view complete prompt, tools & judge analysis, or './f judge' to evaluate with Gemma 7B.[/dim]\n")
+
+def cmd_incidents(args):
+    """Inspect system incidents, outages, and alert events (Splunk / PagerDuty schema)."""
+    import json
+
+    from fiduciary.observability.incident import (
+        IncidentSeverity,
+        export_incidents_splunk,
+        get_incidents,
+        resolve_incident,
+    )
+
+    if getattr(args, "resolve", None):
+        inc_id = args.resolve
+        ok = resolve_incident(inc_id)
+        if ok:
+            console.print(f"[bold green]✓ Incident {inc_id} marked as RESOLVED.[/bold green]")
+        else:
+            console.print(f"[bold red]Failed to resolve incident {inc_id}.[/bold red]")
+        return
+
+    if getattr(args, "splunk", False):
+        events = export_incidents_splunk(limit=args.limit)
+        for ev in events:
+            print(json.dumps(ev))
+        return
+
+    incidents = get_incidents(
+        limit=args.limit,
+        severity=getattr(args, "severity", None),
+        status=getattr(args, "status", None)
+    )
+
+    console.print(Panel(
+        f"[bold]Incident Management Standard:[/bold] Enterprise ITIL & SRE On-Call Integration\n"
+        f"[bold]Supported Telemetry:[/bold] Splunk HEC (NDJSON), PagerDuty v2, Slack Webhooks, Prometheus\n"
+        f"[bold]Incidents Logged:[/bold] {len(incidents)}",
+        title="[bold red]🚨 SYSTEM INCIDENTS & OUTAGE ALERTS[/bold red]",
+        border_style="red"
+    ))
+
+    if not incidents:
+        console.print("[green]✓ No system incidents or outages recorded. All services healthy.[/green]")
+        return
+
+    table = Table(title="Recent System Incidents & Security Alerts")
+    table.add_column("Incident ID", style="bold cyan", width=16)
+    table.add_column("Timestamp", style="dim", width=19)
+    table.add_column("Severity", justify="center")
+    table.add_column("Event Type", style="magenta")
+    table.add_column("Service", style="yellow")
+    table.add_column("Status", justify="center")
+    table.add_column("Summary", max_width=40)
+
+    for inc in incidents:
+        sev = inc.get("severity", "LOW")
+        if sev == IncidentSeverity.CRITICAL:
+            sev_badge = "[bold white on red] CRITICAL [/bold white on red]"
+        elif sev == IncidentSeverity.HIGH:
+            sev_badge = "[bold black on bright_yellow] HIGH [/bold black on bright_yellow]"
+        elif sev == IncidentSeverity.MEDIUM:
+            sev_badge = "[yellow]MEDIUM[/yellow]"
+        else:
+            sev_badge = "[green]LOW[/green]"
+
+        status = inc.get("status", "OPEN")
+        status_badge = "[bold green]RESOLVED[/bold green]" if status == "RESOLVED" else "[bold red]OPEN[/bold red]"
+        ts_clean = (inc.get("timestamp") or "")[:19].replace("T", " ")
+
+        table.add_row(
+            inc.get("id"),
+            ts_clean,
+            sev_badge,
+            inc.get("event_type"),
+            inc.get("service"),
+            status_badge,
+            inc.get("summary")
+        )
+
+    console.print(table)
+    console.print("\n[dim]Tip: Run './f incidents --resolve <ID>' to resolve an incident, or './f incidents --splunk' for raw NDJSON.[/dim]\n")
 
 def cmd_tools(args):
     """List all available deterministic and live web tools."""
@@ -1391,7 +1480,18 @@ def build_parser():
     p_traces.add_argument("--limit", type=int, default=15, help="Max traces to show (default: 15)")
     p_traces.add_argument("--detail", help="View full prompt/response for specific trace ID")
     p_traces.add_argument("--clear", action="store_true", help="Purge all trace logs")
+    p_traces.add_argument("--splunk", action="store_true", help="Output traces in Splunk HEC / ECS NDJSON format")
+    p_traces.add_argument("--ndjson", action="store_true", help="Output traces as raw NDJSON lines")
     p_traces.set_defaults(func=cmd_traces)
+
+    # incidents (alias: alerts, incident)
+    p_inc = subparsers.add_parser("incidents", aliases=["alerts", "incident"], help="Inspect enterprise system incidents, outages, and alert events")
+    p_inc.add_argument("--limit", type=int, default=20, help="Max incidents to show (default: 20)")
+    p_inc.add_argument("--severity", help="Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)")
+    p_inc.add_argument("--status", help="Filter by status (OPEN, RESOLVED)")
+    p_inc.add_argument("--resolve", help="Resolve incident by ID")
+    p_inc.add_argument("--splunk", action="store_true", help="Output incidents in Splunk HEC NDJSON format")
+    p_inc.set_defaults(func=cmd_incidents)
 
     # eval (alias: benchmark, evals)
     p_eval = subparsers.add_parser("eval", aliases=["benchmark", "evals"], help="Run Institutional AI Evaluation Benchmark suite (Grounding, Invariants, SLAs)")

@@ -95,6 +95,22 @@ class PromptGuard:
         guard_msg = None
         if not is_safe:
             labels_str = ", ".join(dict.fromkeys(flagged))
+            try:
+                from fiduciary.observability.incident import IncidentEventType, IncidentSeverity, record_incident
+                record_incident(
+                    severity=IncidentSeverity.HIGH,
+                    event_type=IncidentEventType.PROMPT_INJECTION,
+                    service="prompt_guard",
+                    summary=f"Adversarial prompt injection attempt intercepted: {labels_str}",
+                    details={
+                        "risk_score": min(score, 1.0),
+                        "flagged_patterns": flagged,
+                        "query_snippet": clean_text[:120],
+                    },
+                )
+            except Exception:
+                pass
+
             guard_msg = (
                 f"🛡️ **Prompt Guard Notice**\n\n"
                 f"The submitted query was flagged for an unauthorized prompt directive or security anomaly (`{labels_str}`).\n\n"

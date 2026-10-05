@@ -176,6 +176,20 @@ def init_db():
         expires_at TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_llm_cache_lookup ON llm_response_cache(prompt_hash, db_fingerprint);
+
+    CREATE TABLE IF NOT EXISTS system_incidents (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        service TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        details_json TEXT,
+        status TEXT DEFAULT 'OPEN',
+        resolved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_incidents_ts ON system_incidents(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_incidents_sev ON system_incidents(severity);
     """)
 
     # Safe column migrations on existing accounts table if upgrading

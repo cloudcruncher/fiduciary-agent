@@ -345,6 +345,17 @@ class LLMClient:
             elif self.provider in ("local", "gateway"):
                 # Strict 100% local privacy: NEVER fall back to Gemini cloud!
                 prov_name = (status.get("local_provider") or "local").upper()
+                try:
+                    from fiduciary.observability.incident import IncidentEventType, IncidentSeverity, record_incident
+                    record_incident(
+                        severity=IncidentSeverity.CRITICAL,
+                        event_type=IncidentEventType.SERVICE_OUTAGE,
+                        service="llm_client:local",
+                        summary=f"Local LLM service failed to respond on model '{used_model}'",
+                        details={"provider": status.get("local_provider"), "model": used_model, "caller": caller},
+                    )
+                except Exception:
+                    pass
                 response_text = (
                     f"⚠️ **{prov_name} Local Generation Error**\n\n"
                     f"The local server is online on `{used_model}`, but failed to respond to the completion request.\n"
@@ -356,6 +367,17 @@ class LLMClient:
                 response_text = self._generate_gemini(prompt, system_prompt, temperature)
             else:
                 prov_name = (status.get("local_provider") or "local").upper()
+                try:
+                    from fiduciary.observability.incident import IncidentEventType, IncidentSeverity, record_incident
+                    record_incident(
+                        severity=IncidentSeverity.CRITICAL,
+                        event_type=IncidentEventType.SERVICE_OUTAGE,
+                        service="llm_client:local",
+                        summary=f"Local LLM service failed to respond on model '{used_model}'",
+                        details={"provider": status.get("local_provider"), "model": used_model, "caller": caller},
+                    )
+                except Exception:
+                    pass
                 response_text = (
                     f"⚠️ **{prov_name} Local Generation Error**\n\n"
                     f"The local server failed to respond to the completion request on `{used_model}`."
@@ -390,7 +412,37 @@ class LLMClient:
                         response_text = local_ans
                         used_provider = f"gateway-fallback->{local_prov}"
                         used_model = local_m or used_model
+                        try:
+                            from fiduciary.observability.incident import (
+                                IncidentEventType,
+                                IncidentSeverity,
+                                record_incident,
+                            )
+                            record_incident(
+                                severity=IncidentSeverity.MEDIUM,
+                                event_type=IncidentEventType.FALLBACK_TRIGGERED,
+                                service="llm_client:gateway",
+                                summary=f"AI Gateway failed on model '{used_model}'; circuit breaker fell back to local {local_prov}",
+                                details={"gateway_url": self.gateway_url, "gateway_model": used_model, "fallback_provider": local_prov},
+                            )
+                        except Exception:
+                            pass
                 if not response_text:
+                    try:
+                        from fiduciary.observability.incident import (
+                            IncidentEventType,
+                            IncidentSeverity,
+                            record_incident,
+                        )
+                        record_incident(
+                            severity=IncidentSeverity.CRITICAL,
+                            event_type=IncidentEventType.SERVICE_OUTAGE,
+                            service="llm_client:gateway",
+                            summary=f"AI Gateway failed on '{self.gateway_url}' and local fallback was unavailable",
+                            details={"gateway_url": self.gateway_url, "gateway_model": used_model, "caller": caller},
+                        )
+                    except Exception:
+                        pass
                     response_text = (
                         f"⚠️ **AI Gateway Error**\n\n"
                         f"The configured AI Gateway at `{self.gateway_url}` failed to respond on model `{used_model}`.\n\n"

@@ -108,3 +108,86 @@ def test_api_judge_endpoints(monkeypatch):
     assert res2.json()["verdict"] == "PASSED"
     assert res2.json()["trace_id"] == "tr_latest"
 
+
+def test_incident_lifecycle():
+    from fiduciary.observability.incident import (
+        IncidentEventType,
+        IncidentSeverity,
+        export_incidents_splunk,
+        export_traces_splunk,
+        format_pagerduty_payload,
+        format_slack_alert,
+        get_incidents,
+        record_incident,
+        resolve_incident,
+    )
+
+    # 1. Record incident
+    inc = record_incident(
+        severity=IncidentSeverity.CRITICAL,
+        event_type=IncidentEventType.SERVICE_OUTAGE,
+        service="llm_client:ollama",
+        summary="Ollama connection refused on port 11434",
+        details={"host": "127.0.0.1", "port": 11434},
+    )
+    assert inc["id"].startswith("inc_")
+    assert inc["severity"] == "CRITICAL"
+    assert inc["status"] == "OPEN"
+
+    # 2. Query incidents
+    crit_incidents = get_incidents(severity="CRITICAL")
+    assert any(i["id"] == inc["id"] for i in crit_incidents)
+
+    # 3. PagerDuty and Slack formatters
+    pd_payload = format_pagerduty_payload(inc)
+    assert pd_payload["event_action"] == "trigger"
+    assert pd_payload["payload"]["severity"] == "critical"
+    assert inc["id"] in pd_payload["dedup_key"]
+
+    slack_payload = format_slack_alert(inc)
+    assert "attachments" in slack_payload
+    assert slack_payload["attachments"][0]["color"] == "#ef4444"
+
+    # 4. Splunk exports
+    splunk_traces = export_traces_splunk(limit=5)
+    assert isinstance(splunk_traces, list)
+
+    splunk_incs = export_incidents_splunk(limit=5)
+    assert isinstance(splunk_incs, list)
+    assert any(s["event"]["incident.id"] == inc["id"] for s in splunk_incs)
+
+    # 5. Resolve incident
+    resolved = resolve_incident(inc["id"])
+    assert resolved is True
+    updated = get_incidents(status="RESOLVED")
+    assert any(i["id"] == inc["id"] for i in updated)
+
+
+def test_api_incident_endpoints():
+    # 1. Test alert endpoint
+    res_alert = client.post("/api/incidents/test-alert?severity=HIGH&event_type=PROMPT_INJECTION")
+    assert res_alert.status_code == 200
+    alert_data = res_alert.json()
+    assert alert_data["severity"] == "HIGH"
+    inc_id = alert_data["id"]
+
+    # 2. List incidents
+    res_list = client.get("/api/incidents")
+    assert res_list.status_code == 200
+    assert any(i["id"] == inc_id for i in res_list.json()["incidents"])
+
+    # 3. Splunk export endpoints
+    res_sp_traces = client.get("/api/traces/export?format=splunk")
+    assert res_sp_traces.status_code == 200
+    assert res_sp_traces.headers["content-type"].startswith("application/x-ndjson")
+
+    res_sp_incs = client.get("/api/incidents/export")
+    assert res_sp_incs.status_code == 200
+    assert res_sp_incs.headers["content-type"].startswith("application/x-ndjson")
+
+    # 4. Resolve incident via API
+    res_res = client.post(f"/api/incidents/{inc_id}/resolve")
+    assert res_res.status_code == 200
+    assert res_res.json()["status"] == "resolved"
+
+
