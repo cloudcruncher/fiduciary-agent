@@ -1058,6 +1058,52 @@ def upsert_recurring_bill(
     conn.commit()
     conn.close()
 
+def sync_active_recurring_bills(active_bills: List[Dict[str, Any]]) -> None:
+    """
+    Synchronizes recurring_bills table with verified active recurring commitments.
+    Deactivates any bills no longer confirmed as active (is_active = 0).
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    active_ids = [b["id"] for b in active_bills if b.get("id")]
+
+    if active_ids:
+        placeholders = ",".join("?" for _ in active_ids)
+        cursor.execute(f"UPDATE recurring_bills SET is_active = 0, updated_at = ? WHERE id NOT IN ({placeholders})", [now] + active_ids)
+    else:
+        cursor.execute("UPDATE recurring_bills SET is_active = 0, updated_at = ?", (now,))
+
+    for bill in active_bills:
+        cursor.execute("""
+        INSERT INTO recurring_bills (
+            id, merchant, category, expected_amount, frequency, last_date, next_due_date, is_active, price_change_alert, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            merchant = excluded.merchant,
+            category = excluded.category,
+            expected_amount = excluded.expected_amount,
+            frequency = excluded.frequency,
+            last_date = excluded.last_date,
+            next_due_date = excluded.next_due_date,
+            is_active = 1,
+            price_change_alert = excluded.price_change_alert,
+            updated_at = excluded.updated_at
+        """, (
+            bill["id"],
+            bill["merchant"],
+            bill.get("category"),
+            bill["expected_amount"],
+            bill.get("frequency", "monthly"),
+            bill.get("last_date"),
+            bill.get("next_due_date"),
+            bill.get("price_change_alert"),
+            now
+        ))
+    conn.commit()
+    conn.close()
+
 def get_recurring_bills() -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()

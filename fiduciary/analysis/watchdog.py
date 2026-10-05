@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from fiduciary.storage.db import (
     get_all_accounts,
     get_all_transactions,
+    sync_active_recurring_bills,
     upsert_recurring_bill,
 )
 
@@ -292,6 +293,7 @@ class FinancialWatchdog:
                 )
                 active.append(bill_data)
 
+        sync_active_recurring_bills(active)
         return active, inactive
 
     def _detect_price_hikes(self, txs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
