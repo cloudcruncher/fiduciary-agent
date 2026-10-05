@@ -190,6 +190,29 @@ def init_db():
     );
     CREATE INDEX IF NOT EXISTS idx_incidents_ts ON system_incidents(timestamp);
     CREATE INDEX IF NOT EXISTS idx_incidents_sev ON system_incidents(severity);
+
+    CREATE TABLE IF NOT EXISTS merchant_enrichment_cache (
+        clean_key TEXT PRIMARY KEY,
+        merchant_name TEXT NOT NULL,
+        canonical_id TEXT NOT NULL,
+        domain TEXT,
+        logo_url TEXT,
+        merchant_type TEXT,
+        category_l1 TEXT NOT NULL,
+        category_l2 TEXT,
+        category_l3 TEXT,
+        is_contractual_commitment INTEGER DEFAULT 0,
+        is_essential_living_cost INTEGER DEFAULT 0,
+        hmrc_tax_deductible INTEGER DEFAULT 0,
+        tax_category TEXT,
+        confidence_score REAL DEFAULT 0.95,
+        action_insight TEXT,
+        raw_response_json TEXT,
+        hit_count INTEGER DEFAULT 1,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_mch_cache_key ON merchant_enrichment_cache(clean_key);
     """)
 
     # Safe column migrations on existing accounts table if upgrading
@@ -1465,5 +1488,104 @@ def get_credit_bureau_scores() -> Dict[str, Any]:
         "notes": row["notes"] or "",
         "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
     }
+
+
+def get_cached_enrichment(clean_key: str) -> Optional[Dict[str, Any]]:
+    """Retrieves cached merchant enrichment by clean canonical key, updating hit count."""
+    init_db()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM merchant_enrichment_cache WHERE clean_key = ?", (clean_key,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    # Update hit count and timestamp asynchronously / inline
+    now = datetime.now().isoformat()
+    c.execute("UPDATE merchant_enrichment_cache SET hit_count = hit_count + 1, updated_at = ? WHERE clean_key = ?", (now, clean_key))
+    conn.commit()
+    res = dict(row)
+    conn.close()
+    return res
+
+
+def save_cached_enrichment(clean_key: str, data: Dict[str, Any]) -> None:
+    """Persists enriched merchant intelligence to SQLite cache."""
+    import json
+    init_db()
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.now().isoformat()
+    c.execute("""
+    INSERT INTO merchant_enrichment_cache (
+        clean_key, merchant_name, canonical_id, domain, logo_url, merchant_type,
+        category_l1, category_l2, category_l3, is_contractual_commitment,
+        is_essential_living_cost, hmrc_tax_deductible, tax_category,
+        confidence_score, action_insight, raw_response_json, hit_count, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(clean_key) DO UPDATE SET
+        merchant_name = excluded.merchant_name,
+        canonical_id = excluded.canonical_id,
+        domain = excluded.domain,
+        logo_url = excluded.logo_url,
+        merchant_type = excluded.merchant_type,
+        category_l1 = excluded.category_l1,
+        category_l2 = excluded.category_l2,
+        category_l3 = excluded.category_l3,
+        is_contractual_commitment = excluded.is_contractual_commitment,
+        is_essential_living_cost = excluded.is_essential_living_cost,
+        hmrc_tax_deductible = excluded.hmrc_tax_deductible,
+        tax_category = excluded.tax_category,
+        confidence_score = excluded.confidence_score,
+        action_insight = excluded.action_insight,
+        raw_response_json = excluded.raw_response_json,
+        hit_count = merchant_enrichment_cache.hit_count + 1,
+        updated_at = excluded.updated_at
+    """, (
+        clean_key,
+        data.get("merchant_name", clean_key),
+        data.get("canonical_id", f"mch_{clean_key}"),
+        data.get("domain"),
+        data.get("logo_url"),
+        data.get("merchant_type", "General Merchant"),
+        data.get("category_l1", "General Spend"),
+        data.get("category_l2"),
+        data.get("category_l3"),
+        1 if data.get("is_contractual_commitment") else 0,
+        1 if data.get("is_essential_living_cost") else 0,
+        1 if data.get("hmrc_tax_deductible") else 0,
+        data.get("tax_category"),
+        float(data.get("confidence_score", 0.95)),
+        data.get("action_insight", ""),
+        json.dumps(data) if isinstance(data, dict) else str(data),
+        now,
+        now
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_enrichment_cache_stats() -> Dict[str, Any]:
+    """Returns operational metrics for the merchant enrichment cache."""
+    init_db()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*), COALESCE(SUM(hit_count), 0) FROM merchant_enrichment_cache")
+    row = c.fetchone()
+    total_entries = row[0] if row else 0
+    total_hits = row[1] if row else 0
+
+    c.execute("SELECT clean_key, merchant_name, hit_count, category_l1 FROM merchant_enrichment_cache ORDER BY hit_count DESC LIMIT 10")
+    top_merchants = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    return {
+        "total_cached_merchants": total_entries,
+        "total_cache_hits": total_hits,
+        "top_frequent_merchants": top_merchants
+    }
+
 
 

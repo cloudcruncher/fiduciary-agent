@@ -24,6 +24,7 @@ from fiduciary.analysis.tax_optimizer import UKTaxOptimizer
 from fiduciary.analysis.watchdog import FinancialWatchdog
 from fiduciary.connectors.csv_importer import detect_bank_and_parse
 from fiduciary.connectors.wise import WiseClient
+from fiduciary.enrichment.models import BatchEnrichRequest, TransactionInput
 from fiduciary.storage.db import (
     clear_chat_history,
     delete_account,
@@ -4068,6 +4069,35 @@ def execute_mcp_tool(req: MCPExecuteRequest):
     from fiduciary.agent.mcp_gateway import MCPGateway
     res = MCPGateway.call_tool(tool_name=req.tool_name, arguments=req.arguments)
     return res
+
+@app.post("/api/v1/enrich/transaction", tags=["Transaction Intelligence & Enrichment"])
+def enrich_single_transaction_endpoint(req: TransactionInput):
+    """
+    Enterprise Transaction Enrichment & Entity Resolution API.
+    Normalizes bank statement narratives, resolves canonical corporate merchant,
+    classifies into L1/L2/L3 granular taxonomy, infers payment rails, and generates
+    HMRC tax deductibility and fiduciary cadence insights.
+    """
+    from fiduciary.enrichment.engine import EnrichmentEngine
+    engine = EnrichmentEngine()
+    return engine.enrich_single(req)
+
+@app.post("/api/v1/enrich/batch", tags=["Transaction Intelligence & Enrichment"])
+def enrich_batch_transactions_endpoint(req: BatchEnrichRequest):
+    """
+    High-Throughput Batch Transaction Enrichment API.
+    Processes up to 100 raw transaction narratives in sub-second latency with
+    automatic cache hits and frontier smart model fallback.
+    """
+    from fiduciary.enrichment.engine import EnrichmentEngine
+    engine = EnrichmentEngine()
+    return engine.enrich_batch(req.transactions)
+
+@app.get("/api/v1/enrich/cache/stats", tags=["Transaction Intelligence & Enrichment"])
+def get_enrichment_cache_stats_endpoint():
+    """Returns operational telemetry for the canonical merchant cache."""
+    from fiduciary.storage.db import get_enrichment_cache_stats
+    return get_enrichment_cache_stats()
 
 @app.get("/api/transactions")
 def get_transactions(
