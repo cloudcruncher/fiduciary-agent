@@ -1,4 +1,9 @@
+from datetime import date, timedelta
+
 from fiduciary.analysis.watchdog import FinancialWatchdog
+
+# The duplicate detector only looks at the last 30 days, so these tests need a date relative to today.
+RECENT = (date.today() - timedelta(days=2)).isoformat()
 
 
 def test_detect_price_hikes():
@@ -16,8 +21,8 @@ def test_detect_price_hikes():
 def test_detect_duplicate_charges():
     watchdog = FinancialWatchdog()
     sample_txs = [
-        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10", "status": "settled"},
-        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": "2026-09-10", "status": "settled"},
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": RECENT, "status": "settled"},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Coffee House", "amount": -4.50, "booking_date": RECENT, "status": "settled"},
     ]
     dups = watchdog._detect_duplicate_charges(sample_txs)
     assert len(dups) == 1
@@ -29,8 +34,8 @@ def test_detect_duplicate_charges_suppresses_pending_settled_transition():
     watchdog = FinancialWatchdog()
     # When a transaction exists in both pending and settled states during bank clearing
     sample_txs = [
-        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": "2026-10-03", "status": "pending"},
-        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": "2026-10-03", "status": "settled"},
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": RECENT, "status": "pending"},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Welcome Brentford", "amount": -13.87, "booking_date": RECENT, "status": "settled"},
     ]
     dups = watchdog._detect_duplicate_charges(sample_txs)
     # Must NOT flag as duplicate charge
@@ -41,8 +46,8 @@ def test_detect_duplicate_charges_ignores_zero_preauthorizations():
     watchdog = FinancialWatchdog()
     # Card pre-auths of £0.00 should never trigger duplicate charge alerts
     sample_txs = [
-        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": "2026-09-26"},
-        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": "2026-09-26"},
+        {"id": "tx1", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": RECENT},
+        {"id": "tx2", "account_id": "acc1", "counterparty_name": "Anthropic", "amount": 0.00, "booking_date": RECENT},
     ]
     dups = watchdog._detect_duplicate_charges(sample_txs)
     assert len(dups) == 0
